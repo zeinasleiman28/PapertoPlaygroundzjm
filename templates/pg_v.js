@@ -9,8 +9,13 @@ var PG = (function () {
     if (typeof x === 'boolean') return x ? 'true' : 'false';
     if (typeof x !== 'number') return String(x);
     if (!isFinite(x)) return isNaN(x) ? 'NaN' : (x > 0 ? '\u221e' : '\u2212\u221e');
-    if (typeof d === 'number') return x.toFixed(d);
     var a = Math.abs(x);
+    if (typeof d === 'number') {
+      d = Math.max(0, Math.min(12, Math.round(d) || 0));
+      // a value that would round to 0 at these decimals (e.g. 5e-9 C as 0.000), or a huge one, uses scientific notation
+      if (a !== 0 && (a < 0.5 * Math.pow(10, -d) || a >= 1e9)) return x.toExponential(2);
+      return x.toFixed(d);
+    }
     if (a === 0) return '0';
     if (a >= 1e5 || a < 1e-3) return x.toExponential(2);
     return String(+x.toPrecision(4));
@@ -347,15 +352,22 @@ var PG = (function () {
   /* Fill {r.key}, {r.key[0][1]} or {r.key:3} placeholders with live values from compute(). Returns {text, bad}. */
   function fill(text, r) {
     var bad = [];
-    var out = String(text === undefined || text === null ? '' : text).replace(/\{r\.([A-Za-z_$][\w$]*(?:\.[A-Za-z_$][\w$]*|\[\d+\])*)(?::(\d))?\}/g, function (m, path, d) {
+    // format code after the colon: {r.x:3} = 3 decimals, {r.x:3e} = scientific notation; anything else = normal formatting
+    function num(x, code) {
+      var m = /^\s*(\d{1,2})\s*([a-zA-Z%]*)\s*$/.exec(code || '');
+      if (!m) return fmt(x);
+      if (/^e$/i.test(m[2])) return x.toExponential(Math.min(10, +m[1]));
+      return fmt(x, +m[1]);
+    }
+    var out = String(text === undefined || text === null ? '' : text).replace(/\{r\.([A-Za-z_$][\w$]*(?:\.[A-Za-z_$][\w$]*|\[\d+\])*)(?::([^{}]*))?\}/g, function (m, path, d) {
       var v = r, parts = path.match(/[A-Za-z_$][\w$]*|\d+/g);
       for (var i = 0; i < parts.length && v !== undefined && v !== null; i++) v = v[parts[i]];
       // +/-Infinity can be a correct value (e.g. no damping) and prints as ∞, like everywhere else; NaN never is
-      if (typeof v === 'number' && !isNaN(v)) return isFinite(v) ? fmt(v, d === undefined ? undefined : +d) : fmt(v);
+      if (typeof v === 'number' && !isNaN(v)) return isFinite(v) ? num(v, d) : fmt(v);
       // null is compute()'s way of saying "does not exist in this state" (no solution, no critical angle): show a dash
       if (v === null && parts.length && i === parts.length) return '—';
       if (typeof v === 'string' || typeof v === 'boolean') return String(v);
-      var flat = function (x) { return Array.isArray(x) ? '[' + x.map(flat).join(', ') + ']' : (typeof x === 'number' && isFinite(x) ? fmt(x, d === undefined ? undefined : +d) : null); };
+      var flat = function (x) { return Array.isArray(x) ? '[' + x.map(flat).join(', ') + ']' : (typeof x === 'number' && isFinite(x) ? num(x, d) : null); };
       if (Array.isArray(v) && v.length && v.length <= 12 && flat(v).indexOf('null') < 0) return flat(v);
       bad.push(m); return m;
     });
