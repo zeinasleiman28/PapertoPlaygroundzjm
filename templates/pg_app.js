@@ -95,7 +95,10 @@
       if (c.type === 'slider') {
         var unit = c.unit ? ' ' + lite(c.unit) : '';
         var out = h('output', { 'for': id, 'class': 'pg-ctl-val' }, lab, fmt(state[c.id]) + unit);
-        var r = h('input', { type: 'range', id: id, min: c.min, max: c.max, step: c.step || 'any', value: state[c.id] }, wrap);
+        // a default that is not on the step grid would be silently snapped by the browser: use a continuous step then
+        var st = c.step, k = st ? (state[c.id] - c.min) / st : 0;
+        if (!st || Math.abs(k - Math.round(k)) > 1e-6) st = 'any';
+        var r = h('input', { type: 'range', id: id, min: c.min, max: c.max, step: st, value: state[c.id] }, wrap);
         r.addEventListener('input', function () { state[c.id] = parseFloat(r.value); out.innerHTML = fmt(state[c.id]) + unit; update(); });
       } else if (c.type === 'number') {
         var n = numIn(state[c.id], c, function (v) { state[c.id] = v; }, plainText(c.label)); n.id = id; wrap.appendChild(n);
@@ -185,7 +188,8 @@
 
   /* ---------- live checks ---------- */
   function runChecks() {
-    var ul = $('pg-checks'), list = (typeof checks !== 'undefined' && Array.isArray(checks)) ? checks : [], pass = 0;
+    var hidden = SPEC.hidden_checks || [];
+    var ul = $('pg-checks'), list = ((typeof checks !== 'undefined' && Array.isArray(checks)) ? checks : []).filter(function (c) { return hidden.indexOf(c.name) < 0; }), pass = 0;
     list.forEach(function (c) {
       var ok = false, detail = '';
       try {

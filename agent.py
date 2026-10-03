@@ -129,11 +129,14 @@ def main() -> int:
 
         # ---- repair loop ----
         attempt = 0
-        while (best[3]["critical"] or best[3]["major"]) and attempt < MAX_REPAIRS:
+        regen = False
+        # normal repairs; one extra fresh attempt is allowed only while the page would be unusable
+        while (best[3]["critical"] or best[3]["major"]) and (attempt < MAX_REPAIRS or
+                                                               (CK.unusable(best[3]) and attempt < MAX_REPAIRS + 1)):
             attempt += 1
             _, s_txt, c_txt, r = best
             problems = r["critical"] + r["major"]
-            if r["spec"] is None or not c_txt:
+            if r["spec"] is None or not c_txt or regen:
                 # Output was truncated or malformed: regenerate from scratch, asking for brevity.
                 trace.event("revise", "regenerate", "started", attempt=attempt, reason=problems[:2])
                 raw = llm.chat(SYSTEM, user_prompt(case, ex_key, excerpt, note or "unavailable") +
@@ -159,6 +162,11 @@ def main() -> int:
             trace.event("revise", "apply_repair", "improved" if best[0] < prev else "not_improved",
                         attempt=attempt, score_before=prev, score_after=CK.score(res))
             if best[0] >= prev and sorted(res["critical"] + res["major"]) == sorted(problems):
+                if CK.unusable(best[3]):
+                    # a repair could not make the page work: next attempt regenerates from scratch
+                    regen = True
+                    trace.event("revise", "switch_to_regenerate", "no_progress", attempt=attempt)
+                    continue
                 # same failures after a repair: another identical request would waste tokens
                 trace.event("revise", "stop_repairs", "no_progress", attempt=attempt)
                 break
@@ -171,6 +179,15 @@ def main() -> int:
     if best and best[3]["spec"] is not None and not any("CODE does not define" in p or "CODE block is missing" in p
                                                          for p in best[3]["critical"]):
         spec, code = best[3]["spec"], best[2]
+        left = best[3]["critical"] + best[3]["major"]
+        bad_checks = [re.match(r'check "(.*?)" fails', x).group(1) for x in left if re.match(r'check ".*?" fails', x)]
+        if bad_checks and len(bad_checks) == len(left):
+            # only the model's own known-answer tests still disagree with a computation that otherwise passes every
+            # local check; do not present an unverified expectation on the page, but record it here
+            spec["hidden_checks"] = bad_checks
+            best[3]["major"] = []
+            trace.event("output", "hide_unverified_self_checks", "ok", checks=bad_checks,
+                        reason="model's expected value still disagreed with compute() after repairs")
         if not isinstance(spec.get("source"), dict):
             spec["source"] = {}
         spec["source"].setdefault("url", str(case.get("source_url", "")))

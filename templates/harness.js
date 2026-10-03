@@ -15,7 +15,9 @@ function __walk(n, acc) {
   acc.nodes++;
   var t = (n.textContent || '') + ' ' + (n._html || '');
   // a value printed as NaN/undefined is a bug; the word in prose ("PPV is undefined here") is not
-  if (/\bNaN\b|\[object Object\]|(?<!\b(?:is|are|be|was|stays|remains|becomes) )\bundefined\b/.test(t)) acc.bad.push(t.trim().slice(0, 80));
+  // value-like "= undefined", ": undefined" or a bare "undefined" label; prose such as "PPV is undefined here" is fine
+  var m = /\bNaN\b|\[object Object\]|(?:[=:(\[,]\s*|^\s*)undefined\b/m.exec(t);
+  if (m) acc.bad.push('...' + t.slice(Math.max(0, m.index - 70), m.index + 30).trim() + '...');  // context around the bad token
   for (var i = 0; i < n.children.length; i++) __walk(n.children[i], acc);
   return acc;
 }
@@ -65,8 +67,12 @@ function __run(spec) {
     var ep = merged(null), any = false;
     C.forEach(function (c, i) {
       if (c.type === 'slider' && typeof c.min === 'number' && typeof c.max === 'number') { ep[c.id] = c[pair[i % 2]]; any = true; }
+      // vectors and matrices go to all zeros (or their minimum if zero is not allowed) at the same time
+      var z = typeof c.min === 'number' && c.min > 0 ? c.min : 0;
+      if (c.type === 'vector' && Array.isArray(ep[c.id])) { ep[c.id] = ep[c.id].map(function () { return z; }); any = true; }
+      if (c.type === 'matrix' && Array.isArray(ep[c.id])) { ep[c.id] = ep[c.id].map(function (r) { return r.map(function () { return z; }); }); any = true; }
     });
-    if (any) cases.push({ label: 'combined slider extremes (' + pair.join('/') + ' alternating) ' + JSON.stringify(ep).slice(0, 120), p: ep, kind: 'edge' });
+    if (any) cases.push({ label: 'combined extremes (sliders ' + pair.join('/') + ' alternating, vectors/matrices zero) ' + JSON.stringify(ep).slice(0, 120), p: ep, kind: 'edge' });
   });
   var seed = 12345; function rnd() { seed = (1664525 * seed + 1013904223) >>> 0; return seed / 4294967296; }
   for (var k = 0; k < 4; k++) {

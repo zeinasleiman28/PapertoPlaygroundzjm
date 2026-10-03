@@ -244,6 +244,11 @@ def run_js(spec: dict, code: str, timeout_s: float = 8.0):
         ctx.eval(code, timeout_sec=timeout_s)
     except Exception as e:
         msg = str(e).splitlines()[0][:300] if str(e) else type(e).__name__
+        m = re.search(r":(\d+):", msg)
+        if m:  # show the offending line so the repair can find it
+            ln, lines = int(m.group(1)), code.splitlines()
+            ctx_lines = [f"{i + 1}: {lines[i]}" for i in range(max(0, ln - 2), min(len(lines), ln + 1))]
+            msg += " | code around it: " + " / ".join(x[:160] for x in ctx_lines)
         rep["critical"].append(f"CODE does not run (syntax or top-level error): {msg}")
         return rep
     try:
@@ -315,6 +320,14 @@ def blocks_to_fix(problems):
         else:
             need.add("CODE")
     return need or {"SPEC", "CODE"}
+
+def unusable(res) -> bool:
+    """True if the page would have no working interactive model."""
+    if res.get("spec") is None:
+        return True
+    return any(k in p for p in res["critical"] for k in ("CODE does not run", "CODE block is missing", "on default inputs",
+                                                          "drew nothing", "does not define", "failed or timed out"))
+
 
 def score(res) -> int:
     return 100 * len(res["critical"]) + 10 * len(res["major"]) + len(res["minor"])

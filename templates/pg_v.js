@@ -154,11 +154,14 @@ var PG = (function () {
       (o.hlines || []).forEach(function (v) { need(isNum(v.y), 'V.line: hline y not finite'); ys.push(v.y); });
       // optional log axes: positions use log10; non-positive values are rejected so nothing is drawn wrongly
       var lx = !!o.xLog, ly = !!o.yLog;
-      function lg(v, nm) { need(v > 0, 'V.line: ' + nm + ' must be > 0 on a log axis (got ' + v + ')'); return Math.log(v) / Math.LN10; }
-      if (lx) xs = xs.map(function (v) { return lg(v, 'x'); });
-      if (ly) ys = ys.map(function (v) { return lg(v, 'y'); });
-      var rx = range(xs, lx && isNum(o.xmin) ? lg(o.xmin, 'xmin') : o.xmin, lx && isNum(o.xmax) ? lg(o.xmax, 'xmax') : o.xmax, false),
-          ry = range(ys, ly && isNum(o.ymin) ? lg(o.ymin, 'ymin') : o.ymin, ly && isNum(o.ymax) ? lg(o.ymax, 'ymax') : o.ymax, false);
+      // log axes: non-positive values cannot be placed, so they are skipped (the line breaks there)
+      function lg(v) { return Math.log(v) / Math.LN10; }
+      if (lx) xs = xs.filter(function (v) { return v > 0; }).map(lg);
+      if (ly) ys = ys.filter(function (v) { return v > 0; }).map(lg);
+      if (!xs.length) xs = [0, 1];
+      if (!ys.length) ys = [0, 1];
+      var rx = range(xs, lx && o.xmin > 0 ? lg(o.xmin) : (lx ? undefined : o.xmin), lx && o.xmax > 0 ? lg(o.xmax) : (lx ? undefined : o.xmax), false),
+          ry = range(ys, ly && o.ymin > 0 ? lg(o.ymin) : (ly ? undefined : o.ymin), ly && o.ymax > 0 ? lg(o.ymax) : (ly ? undefined : o.ymax), false);
       if (lx && !isNum(o.xmin) && !isNum(o.xmax)) rx = [Math.floor(rx[0] + 1e-9), Math.ceil(rx[1] - 1e-9)];
       if (ly && !isNum(o.ymin) && !isNum(o.ymax)) ry = [Math.floor(ry[0] + 1e-9), Math.ceil(ry[1] - 1e-9)];
       if (rx[1] <= rx[0]) rx[1] = rx[0] + 1;
@@ -186,15 +189,20 @@ var PG = (function () {
       var cp = s('clipPath', { id: clipId }, s('defs', {}, svg));
       s('rect', { x: x0, y: y0 - 2, width: x1 - x0, height: y1 - y0 + 4 }, cp);
       var pg = s('g', { 'clip-path': 'url(#' + clipId + ')' }, g);
-      (o.hlines || []).forEach(function (v) { s('line', { x1: x0, x2: x1, y1: r2(Y(v.y)), y2: r2(Y(v.y)), 'class': 'pg-ref' }, pg); if (v.label) txt(g, x1 - 4, Y(v.y) - 5, v.label, 'pg-reflabel', 'end'); });
-      (o.vlines || []).forEach(function (v) { s('line', { x1: r2(X(v.x)), x2: r2(X(v.x)), y1: y0, y2: y1, 'class': 'pg-ref' }, pg); if (v.label) txt(g, X(v.x) + 4, y0 + 12, v.label, 'pg-reflabel', 'start'); });
+      var okX = function (v) { return !lx || v > 0; }, okY = function (v) { return !ly || v > 0; };
+      (o.hlines || []).filter(function (v) { return okY(v.y); }).forEach(function (v) { s('line', { x1: x0, x2: x1, y1: r2(Y(v.y)), y2: r2(Y(v.y)), 'class': 'pg-ref' }, pg); if (v.label) txt(g, x1 - 4, Y(v.y) - 5, v.label, 'pg-reflabel', 'end'); });
+      (o.vlines || []).filter(function (v) { return okX(v.x); }).forEach(function (v) { s('line', { x1: r2(X(v.x)), x2: r2(X(v.x)), y1: y0, y2: y1, 'class': 'pg-ref' }, pg); if (v.label) txt(g, X(v.x) + 4, y0 + 12, v.label, 'pg-reflabel', 'start'); });
       o.series.forEach(function (sr, k) {
         var d = '';
-        for (var i = 0; i < sr.x.length; i++) d += (i ? 'L' : 'M') + r2(X(sr.x[i])) + ' ' + r2(Y(sr.y[i]));
+        var pen = 'M';
+        for (var i = 0; i < sr.x.length; i++) {
+          if ((lx && !(sr.x[i] > 0)) || (ly && !(sr.y[i] > 0))) { pen = 'M'; continue; }
+          d += pen + r2(X(sr.x[i])) + ' ' + r2(Y(sr.y[i])); pen = 'L';
+        }
         var t = tone(sr.tone, CYCLE[k % 4]);
         if (d) s('path', { d: d, 'class': 'pg-stroke-' + t + (sr.dashed ? ' pg-dashed' : '') }, pg);
       });
-      (o.points || []).forEach(function (p) {
+      (o.points || []).filter(function (p) { return okX(p.x) && okY(p.y); }).forEach(function (p) {
         s('circle', { cx: r2(X(p.x)), cy: r2(Y(p.y)), r: 5, 'class': 'pg-fill-' + tone(p.tone, 'alt') + ' pg-dot' }, g);
         if (p.label) txt(g, X(p.x) + 8, Y(p.y) - 8, p.label, 'pg-val', 'start');
       });
