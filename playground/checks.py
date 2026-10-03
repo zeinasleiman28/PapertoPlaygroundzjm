@@ -28,6 +28,7 @@ def parse_blocks(text: str):
         spec = re.sub(r"^```(?:json)?\s*|\s*```$", "", spec.strip())
     if code is not None:
         code = re.sub(r"^```(?:javascript|js)?\s*|\s*```$", "", code.strip())
+        code = re.sub(r"^(?:javascript|js|JavaScript|JS)[ \t]*\n", "", code)  # a bare language tag line
     return spec, code
 
 
@@ -306,7 +307,9 @@ def blocks_to_fix(problems):
     """Which block(s) a repair must return: SPEC, CODE or both."""
     need = set()
     for p in problems:
-        if p.startswith(("SPEC", "control ", "slider", "select", "toggle", "vector", "matrix", "number control",
+        if "has no effect" in p:
+            need.add("CODE")
+        elif p.startswith(("SPEC", "control ", "slider", "select", "toggle", "vector", "matrix", "number control",
                          "duplicate control", "exploration")) or "preset uses unknown" in p:
             need.add("SPEC")
         else:

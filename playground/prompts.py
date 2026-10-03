@@ -3,9 +3,10 @@ import json
 
 CONTRACT = r"""Build ONE interactive teaching page for a single mechanism from a paper. A fixed template renders it; you write only content (SPEC JSON) and math/plots (CODE). Reply with exactly:
 <<<SPEC>>>
-{json}
+{...}
 <<<CODE>>>
-javascript
+function compute(p){...}
+...
 <<<END>>>
 
 SPEC (text may use <sub><sup><b><i><code><br> and Unicode math):
@@ -17,7 +18,7 @@ SPEC (text may use <sub><sup><b><i><code><br> and Unicode math):
 "controls":2-4 of {"id","type":"slider","label","min","max","step","value"} | {"id","type":"toggle","label","value":bool} | {"id","type":"select","label","options":[{"value","label"}],"value"} | {"id","type":"vector","label","value":[nums],"min","max","step","resizable"?:{"min","max","fill"}} | {"id","type":"matrix","label","value":[[nums]],"rowLabels","colLabels","min","max","step"},
 "readouts":[{"key":compute() output key,"label","digits"?}] 3-6 intermediate and final values,
 "figure_caption":how to read the figure,
-"explorations":exactly 2 {"title","preset":{control id:value},"change","observe":concrete numbers/shapes the learner will see,"why":the cause},
+"explorations":exactly 2 {"title","preset":{control id:value} that creates exactly the situation in the title,"change","observe":what the learner will see (quote a number only if you derived it exactly from the formula at that preset),"why":the cause},
 "limitation":{"kind":"Limitation"|"Assumption"|"Common misunderstanding","text"},
 "grounding":{"from_paper":[{"claim","where"}] 2-4, only what the excerpt states,"ours":[2-4 strings: toy values, simplifications]}}
 
@@ -25,13 +26,13 @@ CODE: plain JS, no DOM/network/randomness/imports. Define:
 function compute(p){...} // p = {control id: value}. Implement the excerpt's equation exactly; return every intermediate value shown. All numbers finite for every allowed input: handle zeros, equal values, empty sums, log 0 (0·log0=0), overflow (subtract max before exp). Never throw; if input is invalid, normalise/clip and set r.note (string).
 function render(V,p,r){...} // r = compute(p). 1-3 panels showing cause and effect, labelled axes:
  V.bars({title,labels,values|series:[{name,values}],highlight,yLabel,xLabel,min,max,digits,refLines:[{y,label}]})
- V.line({title,series:[{name,x,y,dashed}],points:[{x,y,label}],vlines:[{x,label}],hlines:[{y,label}],xLabel,yLabel,xmin,xmax,ymin,ymax}) // a sweep of one input with the current value marked is often clearest
+ V.line({title,series:[{name,x,y,dashed}],points:[{x,y,label}],vlines:[{x,label}],hlines:[{y,label}],xLabel,yLabel,xmin,xmax,ymin,ymax,xLog,yLog}) // a sweep of one input with the current value marked is often clearest
  V.heatmap({title,matrix,rowLabels,colLabels,min,max,digits})
  V.diagram({title,width,height,items:[{type:"rect",x,y,w,h,label,sub}|{type:"circle",cx,cy,r,label}|{type:"arrow"|"line",x1,y1,x2,y2,label,width}|{type:"text",x,y,text}]})
  V.table({title,columns,rows,digits}); V.note(html) // one line of worked arithmetic with live numbers; V.fmt(x,d)
-const checks=[{name,inputs:{control id:value},test:(r,p)=>bool}]; // 3-5 known-answer checks from the brief/theory
+const checks=[{name,inputs:{control id:value},test:(r,p)=>bool}]; // 3-5 checks; inputs set every control the check relies on; expected values derived by hand from the formula
 
-Rules: stay on the requested focus and audience; define terms before use; match the excerpt's notation; never invent results; every number shown comes from compute(); each control must change compute() output; presets use real control ids with values of the right shape. Be concise."""
+Rules: stay on the requested focus and audience; define terms before use; match the excerpt's notation; never invent results; every number shown comes from compute(); defaults are a typical non-special state so each control visibly changes the figure from them; guard every division (0/0 must not show NaN/undefined); presets use real control ids with values of the right shape. Be concise."""
 
 SYSTEM = CONTRACT
 

@@ -152,14 +152,35 @@ var PG = (function () {
       (o.points || []).forEach(function (p, i) { need(isNum(p.x) && isNum(p.y), 'V.line: point ' + i + ' not finite'); xs.push(p.x); ys.push(p.y); });
       (o.vlines || []).forEach(function (v) { need(isNum(v.x), 'V.line: vline x not finite'); xs.push(v.x); });
       (o.hlines || []).forEach(function (v) { need(isNum(v.y), 'V.line: hline y not finite'); ys.push(v.y); });
-      var rx = range(xs, o.xmin, o.xmax, false), ry = range(ys, o.ymin, o.ymax, false);
+      // optional log axes: positions use log10; non-positive values are rejected so nothing is drawn wrongly
+      var lx = !!o.xLog, ly = !!o.yLog;
+      function lg(v, nm) { need(v > 0, 'V.line: ' + nm + ' must be > 0 on a log axis (got ' + v + ')'); return Math.log(v) / Math.LN10; }
+      if (lx) xs = xs.map(function (v) { return lg(v, 'x'); });
+      if (ly) ys = ys.map(function (v) { return lg(v, 'y'); });
+      var rx = range(xs, lx && isNum(o.xmin) ? lg(o.xmin, 'xmin') : o.xmin, lx && isNum(o.xmax) ? lg(o.xmax, 'xmax') : o.xmax, false),
+          ry = range(ys, ly && isNum(o.ymin) ? lg(o.ymin, 'ymin') : o.ymin, ly && isNum(o.ymax) ? lg(o.ymax, 'ymax') : o.ymax, false);
+      if (lx && !isNum(o.xmin) && !isNum(o.xmax)) rx = [Math.floor(rx[0] + 1e-9), Math.ceil(rx[1] - 1e-9)];
+      if (ly && !isNum(o.ymin) && !isNum(o.ymax)) ry = [Math.floor(ry[0] + 1e-9), Math.ceil(ry[1] - 1e-9)];
+      if (rx[1] <= rx[0]) rx[1] = rx[0] + 1;
+      if (ry[1] <= ry[0]) ry[1] = ry[0] + 1;
       var W = 640, H = 300, ml = 58, mr = 16, mt = 18, mb = o.xLabel ? 58 : 40;
       var f = panel(o.title), svg = svgBox(f, W, H, o.title), g = s('g', {}, svg);
       var x0 = ml, x1 = W - mr, y0 = mt, y1 = H - mb;
-      axes(g, x0, y0, x1, y1, ry[0], ry[1], o.yLabel, o.xLabel, o.digits);
-      var X = function (v) { return x0 + (v - rx[0]) / (rx[1] - rx[0]) * (x1 - x0); };
-      var Y = function (v) { return y1 - (v - ry[0]) / (ry[1] - ry[0]) * (y1 - y0); };
-      ticks(rx[0], rx[1], 6).forEach(function (t) { txt(g, X(t), y1 + 18, fmt(t), 'pg-tick'); });
+      var Xl = function (v) { return x0 + (v - rx[0]) / (rx[1] - rx[0]) * (x1 - x0); };
+      var Yl = function (v) { return y1 - (v - ry[0]) / (ry[1] - ry[0]) * (y1 - y0); };
+      var X = function (v) { return Xl(lx ? Math.log(v) / Math.LN10 : v); };
+      var Y = function (v) { return Yl(ly ? Math.log(v) / Math.LN10 : v); };
+      function logTicks(lo, hi) { var out = []; for (var e = Math.ceil(lo - 1e-9); e <= hi + 1e-9; e++) out.push(e); return out.length >= 2 ? out : ticks(lo, hi, 4); }
+      if (ly) {
+        logTicks(ry[0], ry[1]).forEach(function (e) { var yy = Yl(e); s('line', { x1: x0, x2: x1, y1: r2(yy), y2: r2(yy), 'class': 'pg-gridline' }, g); txt(g, x0 - 6, yy + 4, fmt(Math.pow(10, e)), 'pg-tick', 'end'); });
+        s('line', { x1: x0, x2: x0, y1: y0, y2: y1, 'class': 'pg-axis' }, g);
+        if (o.yLabel) txt(g, 14, (y0 + y1) / 2, o.yLabel, 'pg-axlabel', 'middle', { transform: 'rotate(-90 14 ' + r2((y0 + y1) / 2) + ')' });
+        if (o.xLabel) txt(g, (x0 + x1) / 2, y1 + 40, o.xLabel, 'pg-axlabel');
+      } else axes(g, x0, y0, x1, y1, ry[0], ry[1], o.yLabel, o.xLabel, o.digits);
+      (lx ? logTicks(rx[0], rx[1]) : ticks(rx[0], rx[1], 6)).forEach(function (t) {
+        var xx = Xl(t), anc = xx > x1 - 24 ? 'end' : (xx < x0 + 10 ? 'start' : 'middle');
+        txt(g, xx, y1 + 18, fmt(lx ? Math.pow(10, t) : t), 'pg-tick', anc);
+      });
       s('line', { x1: x0, x2: x1, y1: y1, y2: y1, 'class': 'pg-axis' }, g);
       var clipId = 'pgc' + Math.random().toString(36).slice(2, 8) + (++uid);
       var cp = s('clipPath', { id: clipId }, s('defs', {}, svg));

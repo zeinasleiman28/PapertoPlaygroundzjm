@@ -22,6 +22,7 @@ class LLM:
         self.t0 = t0
         self.key = os.environ.get("OPENROUTER_API_KEY", "").strip()
         self.reasoning = reasoning  # "low" | "minimal" | "none" | "off" (off = do not send the parameter)
+        self.fast_provider = True
         self.requests = 0
         self.prompt_tokens = 0
         self.completion_tokens = 0
@@ -53,6 +54,8 @@ class LLM:
                 "temperature": 0.2,
                 "usage": {"include": True},
             }
+            if self.fast_provider:
+                body["provider"] = {"sort": "throughput"}  # route to the fastest available provider (latency is scored)
             if self.reasoning in ("low", "minimal", "medium", "high"):
                 body["reasoning"] = {"effort": self.reasoning, "exclude": True}
             elif self.reasoning == "none":
@@ -92,8 +95,8 @@ class LLM:
             # Retry policy: one retry without the reasoning parameter on a 400, short backoff on 429/5xx/network.
             if attempts >= 2:  # at most one quick retry (retries count toward the request limit)
                 raise RuntimeError(f"LLM call failed: status={status} err={err or api_err}")
-            if status == 400 and "reasoning" in body:
-                self.reasoning = "off"
+            if status == 400 and ("reasoning" in body or "provider" in body):
+                self.reasoning, self.fast_provider = "off", False  # drop optional parameters the API rejected
                 continue
             if status in (429, 500, 502, 503, 504, None) or (status == 200 and not content.strip()):
                 time.sleep(min(1.0 * attempts, max(0.0, self.remaining_time() - 30)))

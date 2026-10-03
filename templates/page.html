@@ -50,7 +50,7 @@ sub,sup{font-size:.72em;line-height:0}
 #pg-figure{display:flex;flex-direction:column;gap:10px}
 .pg-panel{margin:0;background:var(--panel);border:1px solid var(--rule);border-radius:6px;padding:10px 10px 6px}
 .pg-panel-title{font:600 14px/1.3 var(--sans);margin:0 0 4px}
-.pg-svg{width:100%;height:auto;display:block;font-family:var(--sans);max-height:420px}
+.pg-svg{width:100%;height:auto;display:block;font-family:var(--sans);max-height:330px}
 .pg-figcap{font:14px/1.5 var(--sans);color:var(--muted);margin:8px 0 0}
 .pg-t,.pg-tick,.pg-val,.pg-legend,.pg-axlabel,.pg-reflabel,.pg-dlabel,.pg-dsub,.pg-dtext{fill:var(--ink);font-family:var(--sans)}
 .pg-tick{font-size:12px;fill:var(--muted)}
@@ -170,11 +170,11 @@ footer{max-width:1280px;margin:0 auto;padding:0 28px 32px;font:13px var(--sans);
   </section>
 
   <aside class="pg-bench" id="pg-bench" aria-label="Interactive model">
+    <div class="pg-controls-head"><h2>Change the inputs</h2><button type="button" class="pg-btn pg-btn-small" id="pg-reset">Reset inputs</button></div>
+    <div id="pg-controls"></div>
     <h2>What the model shows</h2>
     <div id="pg-figure" aria-live="polite"></div>
     <p class="pg-figcap" id="pg-figcap"></p>
-    <div class="pg-controls-head"><h2>Change the inputs</h2><button type="button" class="pg-btn pg-btn-small" id="pg-reset">Reset inputs</button></div>
-    <div id="pg-controls"></div>
     <h2>Computed values</h2>
     <div id="pg-readouts" aria-live="polite"></div>
   </aside>

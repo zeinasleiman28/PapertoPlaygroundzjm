@@ -68,7 +68,7 @@ def main() -> int:
     ap.add_argument("--output", required=True)
     ap.add_argument("--model", default=DEFAULT_MODEL,
                     help=f"OpenRouter model ID (default: $OPENROUTER_MODEL or {DEFAULT_MODEL})")
-    ap.add_argument("--reasoning", default=os.environ.get("P2P_REASONING", "low"),
+    ap.add_argument("--reasoning", default=os.environ.get("P2P_REASONING", "none"),
                     help="reasoning effort sent to OpenRouter: low|minimal|medium|none|off")
     args = ap.parse_args()
 
@@ -158,6 +158,10 @@ def main() -> int:
             consider(ns, nc, res)
             trace.event("revise", "apply_repair", "improved" if best[0] < prev else "not_improved",
                         attempt=attempt, score_before=prev, score_after=CK.score(res))
+            if best[0] >= prev and sorted(res["critical"] + res["major"]) == sorted(problems):
+                # same failures after a repair: another identical request would waste tokens
+                trace.event("revise", "stop_repairs", "no_progress", attempt=attempt)
+                break
     except BudgetExceeded as e:
         trace.event("budget", "stop", "limit", reason=str(e))
     except Exception as e:

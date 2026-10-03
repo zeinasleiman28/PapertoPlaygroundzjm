@@ -14,7 +14,8 @@ var window = undefined, fetch = undefined, XMLHttpRequest = undefined;
 function __walk(n, acc) {
   acc.nodes++;
   var t = (n.textContent || '') + ' ' + (n._html || '');
-  if (/\bNaN\b|undefined|\[object Object\]/.test(t)) acc.bad.push(t.trim().slice(0, 80));
+  // a value printed as NaN/undefined is a bug; the word in prose ("PPV is undefined here") is not
+  if (/\bNaN\b|\[object Object\]|(?<!\b(?:is|are|be|was|stays|remains|becomes) )\bundefined\b/.test(t)) acc.bad.push(t.trim().slice(0, 80));
   for (var i = 0; i < n.children.length; i++) __walk(n.children[i], acc);
   return acc;
 }
@@ -59,6 +60,14 @@ function __run(spec) {
     }
   });
 
+  // combined extremes catch 0/0 cases that single-control edges miss (e.g. two probabilities at 0 and 1)
+  [['min', 'max'], ['max', 'min'], ['min', 'min'], ['max', 'max']].forEach(function (pair, k) {
+    var ep = merged(null), any = false;
+    C.forEach(function (c, i) {
+      if (c.type === 'slider' && typeof c.min === 'number' && typeof c.max === 'number') { ep[c.id] = c[pair[i % 2]]; any = true; }
+    });
+    if (any) cases.push({ label: 'combined slider extremes (' + pair.join('/') + ' alternating) ' + JSON.stringify(ep).slice(0, 120), p: ep, kind: 'edge' });
+  });
   var seed = 12345; function rnd() { seed = (1664525 * seed + 1013904223) >>> 0; return seed / 4294967296; }
   for (var k = 0; k < 4; k++) {
     var rp = merged(null);
@@ -101,20 +110,26 @@ function __run(spec) {
   rep.stats.cases = cases.length;
 
   // every control must change compute() output (a control that does nothing is not a meaningful control)
-  var base = null; try { base = JSON.stringify(compute(merged(null))); } catch (e) {}
-  if (base !== null) C.forEach(function (c) {
-    var v = c.value, cands = [];
-    if (c.type === 'slider' || c.type === 'number') cands = [c.min, c.max, typeof v === 'number' ? v + (c.step || 1) : undefined];
-    else if (c.type === 'toggle') cands = [!v];
-    else if (c.type === 'select') cands = (c.options || []).map(function (o) { return o.value; });
-    else if (c.type === 'vector' && Array.isArray(v)) cands = [v.map(function (x, i) { return i === 0 ? x + 1 : x; }), v.map(function (x, i) { return i === v.length - 1 ? x - 1 : x; })];
-    else if (c.type === 'matrix' && Array.isArray(v)) cands = [v.map(function (r, i) { return r.map(function (x, j) { return i === 0 && j === 0 ? x + 1 : x; }); })];
-    var moved = cands.some(function (x) {
-      if (x === undefined || JSON.stringify(x) === JSON.stringify(v)) return false;
-      var o = {}; o[c.id] = x;
-      try { return JSON.stringify(compute(merged(o))) !== base; } catch (e) { return true; }
+  function __ser(n) { return n.tagName + JSON.stringify(n.attrs) + n.textContent + n._html + '[' + n.children.map(__ser).join(',') + ']'; }
+  function __sig(p) { var r = compute(__clone(p)), root = new __El('div'); try { render(PG.makeV(root), __clone(p), r); } catch (e) {} return JSON.stringify(r) + __ser(root); }
+  // a control is dead only if it has no effect from EVERY starting state (default, presets, random states)
+  var bases = cases.filter(function (cs) { return cs.kind !== 'edge' || /^random/.test(cs.label); }).map(function (cs) { return cs.p; });
+  C.forEach(function (c) {
+    var moved = bases.some(function (b) {
+      var v = b[c.id], cands = [], sb;
+      try { sb = __sig(b); } catch (e) { return false; }
+      if (c.type === 'slider' || c.type === 'number') cands = [c.min, c.max, typeof v === 'number' ? v + (c.step || 1) : undefined];
+      else if (c.type === 'toggle') cands = [!v];
+      else if (c.type === 'select') cands = (c.options || []).map(function (o) { return o.value; });
+      else if (c.type === 'vector' && Array.isArray(v)) cands = [v.map(function (x, i) { return i === 0 ? x + 1 : x; }), v.map(function (x, i) { return i === v.length - 1 ? x - 1 : x; })];
+      else if (c.type === 'matrix' && Array.isArray(v)) cands = [v.map(function (r, i) { return r.map(function (x, j) { return i === 0 && j === 0 ? x + 1 : x; }); })];
+      return cands.some(function (x) {
+        if (x === undefined || JSON.stringify(x) === JSON.stringify(v)) return false;
+        var n = __clone(b); n[c.id] = __clone(x);
+        try { return __sig(n) !== sb; } catch (e) { return true; }
+      });
     });
-    if (!moved) rep.major.push('compute() ignores control "' + c.id + '": changing it does not change any output, so it is not a meaningful control');
+    if (!moved) rep.major.push('control "' + c.id + '" has no effect: changing it changes neither compute() output nor the figure');
   });
 
   var list = (typeof checks !== 'undefined' && Array.isArray(checks)) ? checks : null;
@@ -124,11 +139,12 @@ function __run(spec) {
     var passed = 0, results = [];
     list.forEach(function (c, i) {
       var ok = false, detail = '';
+      var r;
       try {
-        var p = merged(c.inputs), r = compute(__clone(p)), res = c.test(r, p);
+        var p = merged(c.inputs); r = compute(__clone(p)); var res = c.test(r, p);
         if (res && typeof res === 'object') { ok = !!res.pass; detail = res.detail || ''; } else ok = !!res;
       } catch (e) { detail = 'threw: ' + e.message; }
-      if (ok) passed++; else rep.major.push('check "' + (c.name || i) + '" fails' + (detail ? ' (' + detail + ')' : '') + '. Fix compute() if the check is right, or fix the check if its expectation is wrong.');
+      if (ok) passed++; else rep.major.push('check "' + (c.name || i) + '" fails' + (detail ? ' (' + detail + ')' : '') + '; compute() returned ' + (r ? JSON.stringify(r).slice(0, 260) : 'nothing') + '. Recompute the expected value by hand: fix compute() if the check is right, otherwise fix the check.');
       results.push({ name: c.name, pass: ok });
     });
     rep.stats.checks_passed = passed; rep.stats.checks_total = list.length; rep.stats.check_results = results;
