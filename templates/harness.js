@@ -115,7 +115,7 @@ function __run(spec) {
       if (cs.kind === 'default') rep.stats.worked_ok = !wf.bad.length;
       if (wf.bad.length) rep.stats.worked_bad_states = (rep.stats.worked_bad_states || 0) + 1;
     }
-    if (nf.length) rep.major.push('compute() returned NaN on ' + cs.label + ': ' + nf.join(', '));
+    if (nf.length) rep.major.push('compute() returned NaN on ' + cs.label + ': ' + nf.join(', ') + ' (if the value does not exist in this state, return null, shown as —; never NaN)');
     if (cs.kind === 'default') {
       rep.missing_readouts = [];
       (spec.readouts || []).forEach(function (ro) { if (!(ro.key in r)) { rep.missing_readouts.push(ro.key); rep.major.push('readout key "' + ro.key + '" is not returned by compute()'); } });
@@ -184,6 +184,8 @@ function __run(spec) {
   // nothing real count as uncovered
   var STOP = { the: 1, and: 1, that: 1, with: 1, for: 1, when: 1, gives: 1, give: 1, equals: 1, equal: 1, check: 1, show: 1, from: 1, into: 1, are: 1, is: 1, of: 1, to: 1, at: 1, in: 1, on: 1, a: 1, an: 1 };
   function toks(x, min) { return String(x || '').toLowerCase().split(/[^a-z0-9_]+/).filter(function (t) { return t.length >= (min || 2) && !STOP[t]; }); }
+  // names as written, without the stop-word filter: a control or output may be called "a", "in" or "to"
+  function raw(x) { return String(x || '').toLowerCase().split(/[^a-z0-9_]+/).filter(function (t) { return t.length > 0; }); }
   var keys = {}; if (r0) Object.keys(r0).forEach(function (k) { keys[k.toLowerCase()] = 1; });
   (spec.readouts || []).forEach(function (ro) { if (ro && ro.key) keys[String(ro.key).toLowerCase()] = 1; });
   ['figure', 'chart', 'plot', 'panel', 'panels', 'readout', 'readouts', 'table', 'note', 'diagram', 'render', 'visual', 'curve', 'bars', 'heatmap'].forEach(function (k) { keys[k] = 1; });
@@ -195,8 +197,8 @@ function __run(spec) {
     var ok = [], bad = [];
     // "explain X" is delivered by the idea/formula text, which the spec schema check already requires
     if (/^\s*(explain|describe|introduce|define)\b/i.test(String(b.req || '')) && spec.idea && spec.formula) ok.push('page text');
-    if (b.control !== undefined && b.control !== null && b.control !== '') (toks(b.control, 1).some(function (t) { return idset[t]; }) ? ok : bad).push('control ' + b.control);
-    if (b.output) (toks(String(b.output).replace(/\br\./g, ''), 1).some(function (t) { return keys[t] || Object.keys(keys).some(function (k) { return k.length >= 4 && t.indexOf(k) >= 0; }); }) ? ok : bad).push('output ' + b.output);
+    if (b.control !== undefined && b.control !== null && b.control !== '') (raw(b.control).some(function (t) { return idset[t]; }) ? ok : bad).push('control ' + b.control);
+    if (b.output) (raw(String(b.output).replace(/\br\./g, '')).some(function (t) { return keys[t] || Object.keys(keys).some(function (k) { return k.length >= 4 && t.indexOf(k) >= 0; }); }) ? ok : bad).push('output ' + b.output);
     if (b.exploration !== undefined && b.exploration !== null && b.exploration !== '') {
       // by number (1, "2", "exploration 1") or by words of its title
       var k = parseInt(String(b.exploration).replace(/^\D*/, ''), 10), et = toks(b.exploration);
