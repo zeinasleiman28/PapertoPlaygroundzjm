@@ -135,10 +135,17 @@ def autofix(spec: dict, case: dict = None):
     elif isinstance(lim, dict) and lim.get("text") and not lim.get("kind"):
         lim["kind"] = "Limitation"
     gr = spec.get("grounding")
+    if isinstance(gr, list):  # a bare list of claims: treat it as the excerpt-supported part
+        spec["grounding"] = gr = {"from_paper": gr}; fixed.append("grounding list -> object")
+    elif gr is not None and not isinstance(gr, dict):
+        spec["grounding"] = gr = {}; fixed.append("grounding dropped (not an object)")
     if isinstance(gr, dict):
         for a, b in (("from_excerpt", "from_paper"), ("paper", "from_paper"), ("our", "ours"), ("simplifications", "ours")):
             if b not in gr and a in gr:
                 gr[b] = gr.pop(a); fixed.append(f"grounding.{a} -> {b}")
+        for k in ("from_paper", "ours"):  # the page iterates these: a single string must become a list
+            if isinstance(gr.get(k), (str, dict)):
+                gr[k] = [gr[k]]; fixed.append(f"grounding.{k} -> list")
     return fixed
 
 

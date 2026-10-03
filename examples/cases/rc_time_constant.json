@@ -1,0 +1,6 @@
+{
+  "source_url": "https://ocw.mit.edu/courses/6-002-circuits-and-electronics-spring-2007/",
+  "focus": "Lecture 13, First-order transients. Explain the step response of an RC circuit using adjustable R, C and source voltage. Show the time constant, the capacitor voltage curve, the current, and the voltage at the current time. Let the learner change R and C and switch between charging and discharging. Guide them through t equal to one time constant and t equal to five time constants. Check that the voltage at t = RC is about 63% of the final value when charging and that doubling R doubles the time constant; handle very small R or C.",
+  "audience": "Second-year electrical engineering undergraduates who know Ohm's law.",
+  "excerpt": "(paraphrased lecture notes) When a step voltage V is applied at t = 0 to a resistor R in series with an initially uncharged capacitor C, the capacitor voltage obeys RC dv/dt + v = V. Its solution is v(t) = V(1 - e^{-t/RC}) for t >= 0. The product tau = RC has units of seconds and is called the time constant. After one time constant the capacitor has reached 1 - 1/e, about 63%, of its final value; after about five time constants it is within 1% of it. The current is i(t) = (V/R) e^{-t/RC}. When a capacitor charged to V0 discharges through R, v(t) = V0 e^{-t/RC}, and after one time constant it has fallen to about 37% of V0."
+}

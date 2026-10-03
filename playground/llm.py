@@ -1,5 +1,6 @@
 """Minimal OpenRouter client that enforces the assessment limits."""
 import os
+import threading
 import time
 
 import requests
@@ -34,6 +35,28 @@ class LLM:
     def remaining_completion(self) -> int:
         return MAX_COMPLETION_TOKENS - self.completion_tokens
 
+    def _post(self, body: dict, timeout: float):
+        """POST with a hard wall-clock cap: requests' timeout only bounds each socket read, so a reply that
+        trickles in slowly could otherwise run past the case deadline."""
+        box = {}
+
+        def run():
+            try:
+                box["resp"] = requests.post(URL, json=body, timeout=(10, timeout),
+                                            headers={"Authorization": f"Bearer {self.key}",
+                                                     "Content-Type": "application/json", "X-Title": "paper-to-playground"})
+            except Exception as e:
+                box["err"] = e
+
+        th = threading.Thread(target=run, daemon=True)
+        th.start()
+        th.join(timeout + 2)
+        if th.is_alive():
+            raise TimeoutError(f"no complete reply within {timeout:.0f} s")
+        if "err" in box:
+            raise box["err"]
+        return box["resp"]
+
     def chat(self, system: str, user: str, max_tokens: int, stage: str) -> str:
         if not self.key:
             raise RuntimeError("OPENROUTER_API_KEY is not set")
@@ -65,9 +88,7 @@ class LLM:
             t = time.time()
             status, data, err = None, None, None
             try:
-                resp = requests.post(URL, json=body, timeout=timeout,
-                                     headers={"Authorization": f"Bearer {self.key}", "Content-Type": "application/json",
-                                              "X-Title": "paper-to-playground"})
+                resp = self._post(body, timeout)
                 status = resp.status_code
                 data = resp.json() if resp.content else {}
             except Exception as e:
@@ -84,7 +105,7 @@ class LLM:
             api_err = (data or {}).get("error")
             ok = status == 200 and not api_err and bool(content.strip())
             self.trace.event(stage, "llm_call", "ok" if ok else "error", call=self.requests, attempt=attempts,
-                             model=self.model, http_status=status, prompt_tokens=pt, completion_tokens=ct,
+                             model=self.model, generation_id=(data or {}).get("id"), http_status=status, prompt_tokens=pt, completion_tokens=ct,
                              reasoning_tokens=((usage.get("completion_tokens_details") or {}).get("reasoning_tokens")),
                              cached_tokens=((usage.get("prompt_tokens_details") or {}).get("cached_tokens")),
                              elapsed_s=dt, finish_reason=choice.get("finish_reason"), max_tokens=budget,

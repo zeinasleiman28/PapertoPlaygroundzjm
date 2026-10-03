@@ -20,7 +20,7 @@ Requirements: Python 3.11, the pinned packages in `requirements.txt`, and no GPU
 
 **Outputs**
 - `out/index.html`: a single self-contained page with inline CSS, JS and SVG. It works offline in Chromium and contains no CDN links, fonts, remote images or API key.
-- `out/trace.jsonl`: one JSON event per line with `stage`, `action` and `result`. Every model call records its prompt, completion and reasoning tokens, OpenRouter generation id, latency and finish reason. Every check round, automatic fix, repair and the final summary are also logged. Credentials and hidden reasoning are never logged.
+- `out/trace.jsonl`: one JSON event per line with `stage`, `action` and `result`. Every model call records its prompt, completion and reasoning tokens, OpenRouter generation id, latency and finish reason. Every check round is logged with named check groups and their pass/fail counts (spec schema, code safety, test input states, effective controls, self-tests, live numbers, citations, brief coverage), along with a `brief_coverage` event, automatic fixes, each repair request with its reasons and returned blocks, and the final summary. Credentials and hidden reasoning are never logged.
 
 **Exit codes:** 0 means a working page was produced; 1 means only a degraded or fallback page could be written; 2 means `case.json` could not be read. A page is written in every case.
 
@@ -37,7 +37,7 @@ case.json ─► read all fields, locate and trim excerpt ─► 1 generation ca
 
 1. **Input and grounding** (`playground/source.py`). Reads every field of `case.json`. The excerpt is taken from any excerpt-like field, or else the longest text field. Reference lists are dropped, and long text is cut to the window that best matches the focus (7,000 characters at most). The URL is fetched only when no excerpt is supplied, with a 3-second timeout, and is never required.
 2. **One generation call** (`playground/prompts.py`). A short system prompt asks for two blocks:
-   - **SPEC** (JSON): title, idea, why it matters, formula, symbol table, 2–4 controls, readouts, two guided experiments with presets, a limitation, and grounding split into "stated in the paper" and "our simplifications".
+   - **SPEC** (JSON): first a `brief` list that maps every requirement in the focus to the control, output, experiment or self-test that implements it; then title, idea, why it matters, formula, symbol table, 2–4 controls, readouts, two guided experiments with presets, a limitation, and grounding split into "stated in the paper excerpt" (keeping the paper's own hedging) and "our own examples and simplifications".
    - **CODE**: `compute(p)` (the mechanism's maths), `render(V, p, r)` (drawn with the template's chart library) and `checks` (known-answer tests).
 
    Numbers quoted in the experiment text are written as `{r.key}` placeholders that the page fills from `compute()` at that experiment's preset, so quoted values cannot drift from the real calculation.
@@ -47,25 +47,26 @@ case.json ─► read all fields, locate and trim excerpt ─► 1 generation ca
    - zero, equal and one-dominant vectors, all-zero and all-one matrices, flipped toggles and every select option;
    - seeded random input states.
 
-   It checks for exceptions, NaN values, NaN or undefined text in figures, missing readouts and unresolved placeholders. It also checks that every control actually changes the calculation or the figure, and runs the model's known-answer checks. The spec is also validated, and the code is scanned for network, DOM, randomness and other forbidden features.
+   It checks for exceptions, NaN values, NaN or undefined text in figures, missing readouts and unresolved placeholders. Brief coverage is also verified: each mapped control or experiment must exist, requests in the focus such as "Check that …", "Guide them through …" and "switch … on/off" must map to self-tests, experiments and a toggle, and cited section or equation numbers must appear in the excerpt or focus. It also checks that every control actually changes the calculation or the figure, and runs the model's known-answer checks. The spec is also validated, and the code is scanned for network, DOM, randomness and other forbidden features.
 4. **Deterministic fixes before any repair.** Out-of-range defaults, invalid select values, unknown preset keys, missing readouts, wrongly shaped fields and extra experiments are fixed in Python without a model call.
 5. **Targeted repair, only on failure.** The agent sends the deduplicated failure messages and only the failing block (SPEC or CODE), with a short repair prompt. It makes at most 2 repairs, stops early if a repair makes no progress, and keeps the best version seen.
    - If only the model's own known-answer tests fail, one cheap repair asks for either a corrected `checks` array, which is spliced into the code, or corrected code if the maths is wrong. If a test still disagrees with a computation that passes every other check, it is left off the page and recorded in the trace.
    - If the page would still be unusable (code that does not run), the agent regenerates once from scratch, within the budget.
-6. **Assembly** (`playground/build.py`). The spec, the generated code, the chart library (`templates/pg_v.js`: bars, line plots with optional log axes, heatmaps, diagrams, tables, worked-arithmetic notes) and the runtime (`templates/pg_app.js`: controls, presets, live readouts, live checks) are inlined into `templates/page.html`. A final scan confirms the page has no external resources.
+6. **Page structure.** The page follows a fixed teaching order: the idea, why it matters, the symbols, the key equation, then the playground (controls beside live charts and computed values), the guided experiments, a limitation and the sources. After each input change, dashed outlines in the charts and "was" values in the readouts show the state before the change, so cause and effect stay visible.
+7. **Assembly** (`playground/build.py`). The spec, the generated code, the chart library (`templates/pg_v.js`: bars, line plots with optional log axes, heatmaps, diagrams, tables, worked-arithmetic notes) and the runtime (`templates/pg_app.js`: controls, presets, live readouts, live checks) are inlined into `templates/page.html`. A final scan confirms the page has no external resources.
 
 **Limits enforced in code** (`playground/llm.py`), with margins under the assessment limits: at most 6 requests including retries, 27,000 completion tokens, a 510-second model deadline, a 240-second cap per call, and one quick retry on 429/5xx/timeout. Optional parameters that the API rejects are dropped and the call is retried.
 
 **Efficiency settings** (measured on our practice cases):
 - Model reasoning is turned off. With `low` or `medium`, DeepSeek spent 5k–27k hidden reasoning tokens per call, which cost 2–6× more and could exhaust the budget before any answer was written.
 - OpenRouter is asked to route to the fastest provider.
-- A typical good run is 1 call, about 4–5k total tokens and 6–12 seconds.
+- A typical good run is 1 call, about 5k total tokens and 13–20 seconds; on our practice set the average is about 6k tokens including occasional repairs.
 
 **Generic only.** The templates and prompts contain no paper-specific content; everything about a paper is generated at run time from the case.
 
 ## Example input/output
 
-`examples/attention/` holds `case.json` (public Example A, with a short excerpt paraphrased in our own words) together with the `index.html` and `trace.jsonl` produced by one real run of the command above. That run passed every local check on the first call: 1 request, about 4.5k tokens, about 13 s. Its trace lists each check round. Runs that need repairs log the failing checks, the targeted repair requests and the result of each revision in the same way. Assessed outputs are generated fresh.
+`examples/attention/` holds `case.json` (public Example A, with a short excerpt paraphrased in our own words) together with the `index.html` and `trace.jsonl` produced by one real run of the command above. That run passed every local check on the first call: 1 request, about 5.3k tokens, about 16 s, with 9/9 brief requirements covered. Its trace lists each check round. Runs that need repairs log the failing checks, the targeted repair requests and the result of each revision in the same way. Assessed outputs are generated fresh.
 
 `examples/cases/` holds the practice briefs used during development. They cover the two public examples plus softmax temperature, batch normalisation, dropout, Adam, gradient descent, an RC low-pass filter and Bayes' rule, each with a short paraphrased excerpt. `python tools/run_cases.py deepseek/deepseek-v4.1-flash` runs them all and prints a cost table.
 

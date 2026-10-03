@@ -209,7 +209,8 @@
     $('pg-checks-sum').textContent = list.length ? (pass + ' of ' + list.length + ' checks pass, computed in your browser when the page loaded.') : 'No automatic checks are available for this page.';
   }
 
-  fillText();
+  // a malformed text field must not take the controls and figure down with it
+  try { fillText(); } catch (e) { if (window.console) console.warn('text section failed: ' + e.message); }
   buildControls();
   $('pg-reset').addEventListener('click', function () { state = defaults(); buildControls(); update(); });
   update();

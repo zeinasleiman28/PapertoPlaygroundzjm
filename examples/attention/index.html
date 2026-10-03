@@ -22,17 +22,23 @@ html{-webkit-text-size-adjust:100%}
 body{margin:0;background:var(--paper);color:var(--ink);font:17px/1.62 var(--serif)}
 a{color:var(--accent)}
 :focus-visible{outline:3px solid var(--alt);outline-offset:2px}
-.pg-head{max-width:1280px;margin:0 auto;padding:36px 28px 12px}
+.pg-head{max-width:1180px;margin:0 auto;padding:36px 28px 12px}
 .pg-head h1{font:600 clamp(28px,3.6vw,42px)/1.12 var(--sans);letter-spacing:-.015em;margin:0 0 10px;max-width:26ch}
 .pg-tagline{font-size:20px;line-height:1.45;color:var(--muted);margin:0 0 12px;max-width:62ch}
 .pg-source{font:14px/1.5 var(--sans);color:var(--muted);margin:0}
 .pg-source cite{font-style:italic;color:var(--ink)}
-.pg-layout{max-width:1280px;margin:0 auto;padding:12px 28px 48px;display:grid;grid-template-columns:minmax(0,5fr) minmax(0,6fr);column-gap:40px;align-items:start}
-.pg-intro{grid-column:1;grid-row:1}
-.pg-rest{grid-column:1;grid-row:2}
-.pg-bench{grid-column:2;grid-row:1 / span 2;position:sticky;top:16px;max-height:calc(100vh - 32px);overflow:auto}
+.pg-layout{max-width:1180px;margin:0 auto;padding:4px 28px 48px}
+.pg-intro,.pg-rest{max-width:760px}
 .pg-intro h2,.pg-rest h2,.pg-bench h2{font:600 15px/1.3 var(--sans);color:var(--accent);margin:34px 0 8px;letter-spacing:.01em}
 .pg-intro h2:first-child{margin-top:14px}
+.pg-num{display:inline-block;min-width:1.4em;color:var(--muted)}
+/* playground: controls beside the figure; the controls column stays in view while the figure scrolls with the page */
+.pg-bench{margin:30px 0 8px;display:grid;grid-template-columns:minmax(260px,340px) minmax(0,1fr);gap:8px 24px;align-items:start;scroll-margin-top:8px}
+.pg-bench-head{grid-column:1 / -1}
+.pg-bench-head h2{margin:0 0 4px}
+.pg-bench-head p{font:14px/1.5 var(--sans);color:var(--muted);margin:0}
+.pg-side{position:sticky;top:12px}
+.pg-main{min-width:0}
 p{margin:0 0 12px;max-width:68ch}
 .pg-formula{font-size:21px;padding:14px 18px;margin:8px 0 14px;background:var(--panel);border:1px solid var(--rule);border-left:4px solid var(--accent);border-radius:4px;overflow-x:auto}
 sub,sup{font-size:.72em;line-height:0}
@@ -87,7 +93,7 @@ path[class^="pg-stroke"],line[class^="pg-stroke"]{fill:none;stroke-width:2.5;str
 
 /* controls */
 .pg-controls-head{display:flex;justify-content:space-between;align-items:baseline;gap:12px}
-#pg-controls{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px 18px;font-family:var(--sans)}
+#pg-controls{display:grid;grid-template-columns:1fr;gap:10px;font-family:var(--sans)}
 .pg-ctl{background:var(--panel);border:1px solid var(--rule);border-radius:6px;padding:10px 12px}
 .pg-ctl-vector,.pg-ctl-matrix{grid-column:1 / -1}
 .pg-ctl-label{display:flex;justify-content:space-between;gap:8px;font-size:14px;font-weight:600;margin-bottom:6px}
@@ -144,9 +150,15 @@ input[type=number],select{font:15px var(--sans);font-variant-numeric:tabular-num
 #pg-checks-sum{font:14px var(--sans);color:var(--muted)}
 footer{max-width:1280px;margin:0 auto;padding:0 28px 32px;font:13px var(--sans);color:var(--muted)}
 
+.pg-was{font-size:12px;font-weight:500;color:var(--muted);margin-left:6px;white-space:nowrap}
+.pg-up{color:var(--ok)} .pg-down{color:var(--warn)}
+.pg-chg{background:var(--alt-soft);border-radius:3px}
+.pg-ghost{fill:none;stroke:var(--ink);stroke-width:1.5;stroke-dasharray:4 3;opacity:.55}
+.pg-ghost-line{fill:none;stroke-width:1.8;stroke-dasharray:3 4;opacity:.45}
 @media (max-width:960px){
-  .pg-layout{display:block;padding:8px 18px 40px}
-  .pg-bench{position:static;max-height:none;margin:22px 0 8px;scroll-margin-top:8px}
+  .pg-layout{padding:8px 18px 40px}
+  .pg-bench{grid-template-columns:1fr}
+  .pg-side{position:static}
   .pg-head{padding:24px 18px 8px}
   body{font-size:16.5px}
 }
@@ -160,43 +172,49 @@ footer{max-width:1280px;margin:0 auto;padding:0 28px 32px;font:13px var(--sans);
 </header>
 <main class="pg-layout">
   <section class="pg-intro" aria-labelledby="h-idea">
-    <h2 id="h-idea">The idea</h2>
+    <h2 id="h-idea"><span class="pg-num">1</span>The idea</h2>
     <div id="pg-idea"></div>
-    <h2>Why it matters</h2>
+    <h2><span class="pg-num">2</span>Why it matters</h2>
     <div id="pg-why"></div>
-    <h2>The key relationship</h2>
+    <div id="pg-symbols-wrap"><h2><span class="pg-num">3</span>What each symbol means</h2><table class="pg-symbols"><tbody id="pg-symbols"></tbody></table></div>
+    <h2><span class="pg-num">4</span>The key relationship</h2>
     <div class="pg-formula" id="pg-formula"></div>
-    <div id="pg-symbols-wrap"><h3>What each symbol means</h3><table class="pg-symbols"><tbody id="pg-symbols"></tbody></table></div>
   </section>
 
-  <aside class="pg-bench" id="pg-bench" aria-label="Interactive model">
-    <div class="pg-controls-head"><h2>Change the inputs</h2><button type="button" class="pg-btn pg-btn-small" id="pg-reset">Reset inputs</button></div>
-    <div id="pg-controls"></div>
-    <h2>What the model shows</h2>
-    <div id="pg-figure" aria-live="polite"></div>
-    <p class="pg-figcap" id="pg-figcap"></p>
-    <h2>Computed values</h2>
-    <div id="pg-readouts" aria-live="polite"></div>
-  </aside>
+  <section class="pg-bench" id="pg-bench" aria-label="Interactive model">
+    <div class="pg-bench-head"><h2><span class="pg-num">5</span>Try it: change the inputs and watch the calculation</h2>
+      <p>Every number below is computed live from the equation. After each change, dashed outlines in the charts and the "was" values show the state before your change.</p></div>
+    <div class="pg-side">
+      <div class="pg-controls-head"><h2>Inputs</h2><button type="button" class="pg-btn pg-btn-small" id="pg-reset">Reset inputs</button></div>
+      <div id="pg-controls"></div>
+    </div>
+    <div class="pg-main">
+      <h2>What the model shows</h2>
+      <div id="pg-figure" aria-live="polite"></div>
+      <p class="pg-figcap" id="pg-figcap"></p>
+      <h2>Computed values</h2>
+      <div id="pg-readouts" aria-live="polite"></div>
+    </div>
+  </section>
 
   <section class="pg-rest">
-    <h2>Guided experiments</h2>
+    <h2><span class="pg-num">6</span>Guided experiments</h2>
     <div id="pg-explore"></div>
-    <h2>Watch out</h2>
+    <h2><span class="pg-num">7</span>Watch out</h2>
     <div class="pg-limit"><p class="pg-limit-kind" id="pg-limit-kind"></p><div id="pg-limit"></div></div>
-    <h2>Where this comes from</h2>
+    <h2><span class="pg-num">8</span>Where this comes from</h2>
     <div class="pg-ground">
-      <div class="pg-ground-col pg-gp"><h3>Stated in the paper</h3><ul id="pg-from-paper"></ul></div>
-      <div class="pg-ground-col pg-go"><h3>Our simplifications and examples</h3><ul id="pg-ours"></ul></div>
+      <div class="pg-ground-col pg-gp"><h3>Stated in the paper excerpt</h3><ul id="pg-from-paper"></ul></div>
+      <div class="pg-ground-col pg-go"><h3>Our own examples and simplifications</h3><ul id="pg-ours"></ul></div>
     </div>
     <p class="pg-disclaimer">This page is a small teaching model. Its numbers come from the calculation running in your browser, not from the paper's experiments, and it does not reproduce the paper's reported results.</p>
-    <h2>Built-in checks</h2>
+    <h2><span class="pg-num">9</span>Built-in checks</h2>
     <p id="pg-checks-sum"></p>
     <ul class="pg-checks" id="pg-checks"></ul>
   </section>
 </main>
 <footer>Generated automatically by a Paper-to-Playground agent. All calculations run locally in this page; no network access is needed.</footer>
-<script type="application/json" id="pg-spec">{"title": "Scaled Dot-Product Attention", "tagline": "Softmax of scaled query–key dot products turns similarity into weights that mix the value vectors.", "source": {"paper": "Attention Is All You Need", "authors": "Vaswani, Shazeer, Parmar, Uszkoreit, Jones, Gomez, Kaiser, Polosukhin", "url": "https://arxiv.org/html/1706.03762v7", "section": "3.2.1 Scaled Dot-Product Attention", "equation": "Attention(Q, K, V) = softmax(Q K^T / sqrt(d_k)) V"}, "idea": "Each query is compared with every key by a dot product; dividing by sqrt(d_k) keeps those scores from blowing up as the key dimension grows. A softmax over each row of scores turns them into non-negative weights that sum to one. The output for that query is then the weighted average of the value vectors, so similar keys contribute more of their value.", "why": "It is the core operation inside every Transformer attention layer, and the scaling factor is the one detail that makes it trainable at large d_k.", "formula": "Attention(Q, K, V) = softmax( Q K<sup>T<\/sup> / sqrt(d<sub>k<\/sub>) ) V", "symbols": [{"symbol": "Q", "meaning": "matrix of queries, one row per query, d_k columns"}, {"symbol": "K", "meaning": "matrix of keys, one row per key, d_k columns"}, {"symbol": "V", "meaning": "matrix of values, one row per key, d_v columns"}, {"symbol": "d_k", "meaning": "dimension of each query/key vector (number of columns of Q and K)"}, {"symbol": "d_v", "meaning": "dimension of each value vector (number of columns of V)"}, {"symbol": "Q K<sup>T<\/sup>", "meaning": "matrix of raw dot-product similarity scores, one row per query, one column per key"}, {"symbol": "sqrt(d_k)", "meaning": "scaling factor that divides every score"}, {"symbol": "softmax", "meaning": "row-wise normalisation: exp(score)/sum of exp(scores) over keys"}, {"symbol": "Attention(Q,K,V)", "meaning": "output matrix, one row per query, d_v columns"}], "controls": [{"id": "Q", "type": "matrix", "label": "Q (queries, rows = queries, cols = d_k)", "value": [[1, 0], [0, 1]], "rowLabels": ["q1", "q2"], "colLabels": ["d1", "d2"], "min": -3, "max": 3, "step": 0.5}, {"id": "K", "type": "matrix", "label": "K (keys, rows = keys, cols = d_k)", "value": [[1, 0], [0, 1]], "rowLabels": ["k1", "k2"], "colLabels": ["d1", "d2"], "min": -3, "max": 3, "step": 0.5}, {"id": "V", "type": "matrix", "label": "V (values, rows = keys, cols = d_v)", "value": [[1, 0], [0, 1]], "rowLabels": ["k1", "k2"], "colLabels": ["v1", "v2"], "min": -3, "max": 3, "step": 0.5}, {"id": "scale", "type": "toggle", "label": "Divide scores by sqrt(d_k)", "value": true}], "readouts": [{"key": "dk", "label": "d_k", "digits": 0}, {"key": "scores", "label": "Scores Q K^T (rows = queries)", "digits": 2}, {"key": "scaled", "label": "Scaled scores / sqrt(d_k)", "digits": 2}, {"key": "weights", "label": "Attention weights (rows sum to 1)", "digits": 3}, {"key": "rowsums", "label": "Row sums of weights", "digits": 3}, {"key": "output", "label": "Output = weights · V", "digits": 3}], "figure_caption": "Left: the score matrix for each query (raw or scaled, depending on the toggle). Right: the resulting attention weights, which are the softmax of those scores; each row sums to 1. The readouts give the output, the weighted sum of the value rows.", "explorations": [{"title": "Equal scores give uniform weights", "preset": {"Q": [[1, 1], [1, 1]], "K": [[1, 1], [1, 1]], "V": [[1, 0], [0, 1]], "scale": true}, "change": "Make every query identical to every key so all dot products are equal.", "observe": "All scores are equal, so the softmax is flat: every weight is {r.weights[0][0]:3} and each row sums to {r.rowsums[0]:3}. The output for query 1 is {r.output[0]} — the plain average of the value rows, not either value alone.", "why": "Softmax of equal scores is uniform: exp is the same for every key, so each weight is 1/(number of keys)."}, {"title": "A dominant score concentrates the weight", "preset": {"Q": [[3, 0], [0, 1]], "K": [[1, 0], [0, 1]], "V": [[1, 0], [0, 1]], "scale": true}, "change": "Make query 1 point strongly along key 1 so its dot product with k1 dominates.", "observe": "Query 1's scaled scores are {r.scaled[0]}, giving weights {r.weights[0]} — nearly all mass on k1. Its output is {r.output[0]}, close to value row 1, while query 2 keeps weights {r.weights[1]} and output {r.output[1]}.", "why": "A large positive score makes exp(score) much bigger than the others, so softmax saturates toward a one-hot weight vector."}], "limitation": {"kind": "Common misunderstanding", "text": "The scaling by 1/sqrt(d_k) is not a normalisation of the output or of the weights — it only rescales the scores before the softmax. Turning it off changes the weights (and hence the output) but never changes the fact that each row of weights sums to 1."}, "grounding": {"from_paper": [{"claim": "The output is a weighted sum of the values, with weights from a compatibility function of the query with the corresponding key.", "where": "Section 3.2"}, {"claim": "Attention(Q,K,V) = softmax(Q K^T / sqrt(d_k)) V.", "where": "Section 3.2.1, Equation 1"}, {"claim": "Dot-product attention is identical except for the scaling factor 1/sqrt(d_k).", "where": "Section 3.2.1"}, {"claim": "For large d_k the dot products grow large in magnitude, pushing softmax into regions with extremely small gradients; scaling counteracts this.", "where": "Section 3.2.1"}], "ours": ["Toy 2x2 Q, K and V matrices with d_k = d_v = 2, editable in the controls.", "Softmax computed with the max subtracted for numerical stability (mathematically identical).", "Only the forward pass is shown; no training, no multi-head or masking.", "The gradient claim is stated qualitatively, not measured here."]}}</script>
+<script type="application/json" id="pg-spec">{"brief": [{"req": "explain scaled dot-product attention with editable Q, K, V", "control": "Q, K, V matrices"}, {"req": "show similarity scores", "output": "scores S = QK^T"}, {"req": "show normalized attention weights", "output": "weights A = softmax(S/sqrt(d_k))"}, {"req": "show the output", "output": "output O = A V"}, {"req": "let the learner switch scaling on/off", "control": "scale toggle"}, {"req": "guide through equal scores", "exploration": 1}, {"req": "guide through a dominant score", "exploration": 2}, {"req": "check each row of weights sums to one", "check": "rows of A sum to 1"}, {"req": "check output equals weighted sum of V", "check": "O = A V"}], "title": "Scaled Dot-Product Attention", "tagline": "One query row, a handful of keys and values: dot products become weights, weights become a weighted sum.", "source": {"paper": "Attention Is All You Need", "authors": "Vaswani et al.", "url": "https://arxiv.org/html/1706.03762v7", "section": "3.2.1 Scaled Dot-Product Attention", "equation": "Attention(Q, K, V) = softmax(Q K^T / sqrt(d_k)) V"}, "idea": "Each query is compared with every key by a dot product. Those raw similarities are divided by sqrt(d_k) and passed through a softmax, which turns them into non-negative weights that sum to one. The output for that query is then just the weighted average of the value vectors, so attention is a soft, differentiable lookup.", "why": "The dot product of two random d_k-dimensional vectors has variance d_k, so without the 1/sqrt(d_k) factor the softmax saturates and its gradients vanish; the scaling keeps the logits at a workable size.", "formula": "Attention(Q, K, V) = softmax(Q K^T / sqrt(d_k)) V", "symbols": [{"symbol": "Q", "meaning": "query matrix, one row per query, d_k columns"}, {"symbol": "K", "meaning": "key matrix, one row per key, d_k columns"}, {"symbol": "V", "meaning": "value matrix, one row per key, d_v columns"}, {"symbol": "d_k", "meaning": "dimension of queries and keys (number of columns of Q and K)"}, {"symbol": "d_v", "meaning": "dimension of values (number of columns of V)"}, {"symbol": "Q K^T", "meaning": "matrix of raw dot-product similarity scores, entry (i,j) = q_i · k_j"}, {"symbol": "sqrt(d_k)", "meaning": "scaling factor that counteracts the growth of dot products with d_k"}, {"symbol": "softmax", "meaning": "row-wise normalisation: exp(x)/sum(exp(x)) over the keys"}, {"symbol": "A", "meaning": "attention weight matrix, rows sum to 1"}, {"symbol": "O", "meaning": "output matrix, row i is the weighted sum of the value rows"}], "controls": [{"id": "Q", "type": "matrix", "label": "Q (queries)", "value": [[1, 0], [0, 1]], "rowLabels": ["q1", "q2"], "colLabels": ["d1", "d2"], "min": -3, "max": 3, "step": 0.5}, {"id": "K", "type": "matrix", "label": "K (keys)", "value": [[1, 0], [0, 1], [1, 1]], "rowLabels": ["k1", "k2", "k3"], "colLabels": ["d1", "d2"], "min": -3, "max": 3, "step": 0.5}, {"id": "V", "type": "matrix", "label": "V (values)", "value": [[1, 0], [0, 1], [1, 1]], "rowLabels": ["v1", "v2", "v3"], "colLabels": ["o1", "o2"], "min": -3, "max": 3, "step": 0.5}, {"id": "scale", "type": "toggle", "label": "Apply 1/sqrt(d_k) scaling", "value": true}], "readouts": [{"key": "dk", "label": "d_k"}, {"key": "scores", "label": "scores QK^T (row 1)"}, {"key": "logits", "label": "scaled logits (row 1)", "digits": 3}, {"key": "weights", "label": "weights A (row 1)", "digits": 3}, {"key": "output", "label": "output O (row 1)", "digits": 3}, {"key": "rowsum", "label": "row sums of A", "digits": 3}], "figure_caption": "Top: the pipeline for query row 1 — dot products, optional scaling, softmax, weighted sum. Middle: bar chart of the attention weights for the selected row, with the value vectors they mix. Bottom: the output row as a bar chart, plus a sweep of the scaling factor showing how the weights sharpen as the logits grow.", "explorations": [{"title": "Equal scores: a uniform average", "preset": {"Q": [[1, 0], [0, 1]], "K": [[1, 0], [0, 1], [1, 1]], "V": [[1, 0], [0, 1], [1, 1]], "scale": true}, "change": "Set every key equal to the query direction, e.g. K = [[1,0],[1,0],[1,0]], so all dot products with q1 are identical.", "observe": "The scores are all {r.scores[0]} and the weights collapse to {r.weights[0]}, {r.weights[1]}, {r.weights[2]} — a uniform average. The output {r.output[0]}, {r.output[1]} is the plain mean of the value rows.", "why": "Softmax of equal logits is uniform, so every value gets the same weight regardless of its content."}, {"title": "A dominant score: attention concentrates", "preset": {"Q": [[2, 0], [0, 1]], "K": [[2, 0], [0, 1], [1, 1]], "V": [[1, 0], [0, 1], [1, 1]], "scale": true}, "change": "Make one key much more aligned with the query than the others, e.g. K = [[3,0],[0,1],[1,1]] with q1 = [2,0].", "observe": "The first score {r.scores[0]} dwarfs the others, so the first weight {r.weights[0]} approaches 1 and the output {r.output[0]}, {r.output[1]} is almost exactly the first value row.", "why": "A large positive logit dominates the softmax, so the weighted sum is pulled toward that value vector."}], "limitation": {"kind": "Common misunderstanding", "text": "The scaling factor 1/sqrt(d_k) is not a normalisation of the data and does not change the ranking of the scores; it only rescales the logits so the softmax stays in a region with usable gradients. Turning it off is exactly the unscaled dot-product attention the paper compares against."}, "grounding": {"from_paper": [{"claim": "The output is a weighted sum of the values, where the weight given to each value is computed by a compatibility function of the query with the corresponding key.", "where": "3.2"}, {"claim": "We take the dot product of the query with all keys, divide each by sqrt(d_k), and apply a softmax to obtain the weights on the values.", "where": "3.2.1"}, {"claim": "Attention(Q, K, V) = softmax(Q K^T / sqrt(d_k)) V.", "where": "Equation 1"}, {"claim": "We suspect that for large values of d_k the dot products grow large in magnitude, pushing the softmax into regions where it has extremely small gradients; to counteract this effect we scale the dot products by 1/sqrt(d_k).", "where": "3.2.1"}], "ours": ["All matrices are 2-3 dimensional toys; the paper uses d_k = d_v = 64 and many heads.", "The sweep of the scaling factor and the bar charts are our own visualisation, not figures from the paper.", "We show only query row 1 in the readouts; the full matrix is computed but the readouts are a slice.", "The 'equal scores' and 'dominant score' presets are pedagogical constructions, not experiments from the paper."]}}</script>
 <script>
 /* Paper-to-Playground visual library. Generic: contains no paper-specific content.
    Exposes PG.fmt, PG.lite, PG.makeV(container). Depends only on a minimal DOM. */
@@ -272,8 +290,11 @@ var PG = (function () {
   function tone(t, dflt) { return TONES[t] ? t : (dflt || 'accent'); }
   var CYCLE = ['accent', 'ours', 'alt', 'muted'];
 
-  function makeV(container) {
-    var V = {}, uid = 0;
+  var PREV = {};  // last drawn values per panel, so the page can outline the state before the latest change
+  function makeV(container, opts) {
+    var V = {}, uid = 0, ghost = !!(opts && opts.ghost);
+    function prevOf(key, now) { var p = ghost ? PREV[key] : undefined; if (ghost) PREV[key] = JSON.parse(JSON.stringify(now)); return p; }
+    function same(a, b) { return JSON.stringify(a) === JSON.stringify(b); }
     function panel(title) {
       var f = h('figure', { 'class': 'pg-panel' }, container);
       if (title) { var c = h('div', { 'class': 'pg-panel-title' }, f); c.innerHTML = lite(title); }
@@ -336,6 +357,15 @@ var PG = (function () {
         s('line', { x1: x0, x2: x1, y1: r2(Y(r.y)), y2: r2(Y(r.y)), 'class': 'pg-ref' }, g);
         if (r.label) txt(g, x1 - 4, Y(r.y) - 5, r.label, 'pg-reflabel', 'end');
       });
+      var pv = prevOf('bars:' + (o.title || ''), { labels: o.labels, series: series.map(function (sr) { return sr.values; }) });
+      if (pv && same(pv.labels, o.labels) && pv.series.length === series.length && !same(pv.series, series.map(function (sr) { return sr.values; }))) {
+        for (var gi = 0; gi < n; gi++) series.forEach(function (sr, k) {
+          var ov = pv.series[k][gi]; if (!isNum(ov) || ov === sr.values[gi]) return;
+          var bx = x0 + gw * (gi + 0.5) - bw * series.length / 2 + bw * k, top = Math.min(Y(ov), Y(0));
+          s('rect', { x: r2(bx + 1), y: r2(top), width: r2(Math.max(1, bw - 2)), height: r2(Math.max(0.5, Math.abs(Y(ov) - Y(0)))), 'class': 'pg-ghost' }, g);
+        });
+        txt(g, x1, H - 3, '- - - dashed: before your last change', 'pg-legend', 'end');
+      }
       if (series.length > 1) legend(g, series.map(function (sr, k) { return { name: sr.name, t: tone(sr.tone, CYCLE[k % 4]) }; }), x0 + 6, y0 + 4);
       return f;
     };
@@ -392,6 +422,18 @@ var PG = (function () {
       var okX = function (v) { return !lx || v > 0; }, okY = function (v) { return !ly || v > 0; };
       (o.hlines || []).filter(function (v) { return okY(v.y); }).forEach(function (v) { s('line', { x1: x0, x2: x1, y1: r2(Y(v.y)), y2: r2(Y(v.y)), 'class': 'pg-ref' }, pg); if (v.label) txt(g, x1 - 4, Y(v.y) - 5, v.label, 'pg-reflabel', 'end'); });
       (o.vlines || []).filter(function (v) { return okX(v.x); }).forEach(function (v) { s('line', { x1: r2(X(v.x)), x2: r2(X(v.x)), y1: y0, y2: y1, 'class': 'pg-ref' }, pg); if (v.label) txt(g, X(v.x) + 4, y0 + 12, v.label, 'pg-reflabel', 'start'); });
+      var pl = prevOf('line:' + (o.title || ''), o.series.map(function (sr) { return { x: sr.x, y: sr.y }; }));
+      if (pl && pl.length === o.series.length && !same(pl, o.series.map(function (sr) { return { x: sr.x, y: sr.y }; }))) {
+        pl.forEach(function (ps, k) {
+          var d0 = '', pen0 = 'M';
+          for (var i = 0; i < ps.x.length; i++) {
+            if (!isNum(ps.x[i]) || !isNum(ps.y[i]) || (lx && !(ps.x[i] > 0)) || (ly && !(ps.y[i] > 0))) { pen0 = 'M'; continue; }
+            d0 += pen0 + r2(X(ps.x[i])) + ' ' + r2(Math.max(y0 - 4, Math.min(y1 + 4, Y(ps.y[i])))); pen0 = 'L';
+          }
+          if (d0) s('path', { d: d0, 'class': 'pg-ghost-line pg-stroke-' + tone(o.series[k].tone, CYCLE[k % 4]) }, pg);
+        });
+        txt(g, x1, H - 3, '- - - dashed: before your last change', 'pg-legend', 'end');
+      }
       o.series.forEach(function (sr, k) {
         var d = '';
         var pen = 'M';
@@ -421,6 +463,8 @@ var PG = (function () {
       var W = ml + C * cell + 10, H = mt + R * cell + 10;
       var f = panel(o.title), svg = svgBox(f, W, H, o.title), g = s('g', {}, svg);
       var hls = (o.highlight || []).map(function (p) { return p[0] + ',' + p[1]; });
+      var hp = prevOf('heat:' + (o.title || ''), o.matrix);
+      if (hp && (hp.length !== R || !same(hp.map(function (r) { return r.length; }), o.matrix.map(function (r) { return r.length; })))) hp = null;
       for (var i = 0; i < R; i++) {
         txt(g, ml - 8, mt + i * cell + cell / 2 + 4, o.rowLabels && o.rowLabels[i] !== undefined ? o.rowLabels[i] : 'row ' + (i + 1), 'pg-tick', 'end');
         for (var j = 0; j < C; j++) {
@@ -429,6 +473,7 @@ var PG = (function () {
           else { t = 'accent'; a = (v - lo) / ((hi - lo) || 1); }
           a = Math.max(0.06, Math.min(1, a));
           s('rect', { x: ml + j * cell + 1, y: mt + i * cell + 1, width: cell - 2, height: cell - 2, 'class': 'pg-fill-' + t, 'fill-opacity': r2(a) }, g);
+          if (hp && hp[i] && isNum(hp[i][j]) && Math.abs(hp[i][j] - v) > 1e-12) s('rect', { x: ml + j * cell + 2, y: mt + i * cell + 2, width: cell - 4, height: cell - 4, 'class': 'pg-ghost' }, g);
           if (hls.indexOf(i + ',' + j) >= 0) s('rect', { x: ml + j * cell + 1, y: mt + i * cell + 1, width: cell - 2, height: cell - 2, 'class': 'pg-hl' }, g);
           if (o.showValues !== false && cell >= 30) txt(g, ml + j * cell + cell / 2, mt + i * cell + cell / 2 + 4, fmt(v, o.digits), a > 0.55 ? 'pg-val pg-val-inv' : 'pg-val');
         }
@@ -528,80 +573,116 @@ var PG = (function () {
 </script>
 <script>
 function compute(p){
-  const note = [];
-  const clip = (x)=>{ x = Number(x); if(!isFinite(x)) return 0; return Math.max(-1e6, Math.min(1e6, x)); };
-  let Q = Array.isArray(p.Q) ? p.Q.map(r=>r.map(clip)) : [[1,0],[0,1]];
-  let K = Array.isArray(p.K) ? p.K.map(r=>r.map(clip)) : [[1,0],[0,1]];
-  let V = Array.isArray(p.V) ? p.V.map(r=>r.map(clip)) : [[1,0],[0,1]];
-  if(Q.length===0) Q=[[0]];
-  if(K.length===0) K=[[0]];
-  if(V.length===0) V=[[0]];
-  const dk = Q[0].length;
-  // align K columns to dk
-  K = K.map(r=>{ const c=r.slice(0,dk); while(c.length<dk) c.push(0); return c; });
-  // align V rows to number of keys
-  const nk = K.length;
-  while(V.length<nk) V.push(V[V.length-1].slice());
-  V = V.slice(0,nk);
-  const dv = V[0].length;
-  const useScale = p.scale !== false;
-  const s = useScale ? Math.sqrt(dk) : 1;
-  if(dk===0){ note.push("d_k = 0; treated as 1."); }
-  const denom = s>0 ? s : 1;
+  const r = {note:""};
+  const clip = (x)=> (typeof x==="number" && isFinite(x)) ? Math.max(-1e6,Math.min(1e6,x)) : 0;
+  const Q = (Array.isArray(p.Q)?p.Q:[[1,0]]).map(row=>row.map(clip));
+  const K = (Array.isArray(p.K)?p.K:[[1,0]]).map(row=>row.map(clip));
+  const V = (Array.isArray(p.V)?p.V:[[1,0]]).map(row=>row.map(clip));
+  const nq = Q.length, dk = Q[0]?Q[0].length:0;
+  const nk = K.length, dv = V[0]?V[0].length:0;
+  if(nq===0||nk===0||dk===0||dv===0){ r.note="Empty matrix; using a 1x1 fallback."; }
+  const Qs = nq?Q:[[0]], Ks = nk?K:[[0]], Vs = nk?V:[[0]];
+  const dkS = Math.max(1,dk);
+  r.dk = dkS; r.dv = dv; r.nq = nq; r.nk = nk;
+  const scaleOn = !!p.scale;
+  const denom = scaleOn ? Math.sqrt(dkS) : 1;
+  r.denom = denom;
   // scores
-  const scores = Q.map(q=>K.map(k=>{ let d=0; for(let i=0;i<dk;i++) d += (q[i]||0)*(k[i]||0); return d; }));
-  const scaled = scores.map(row=>row.map(x=>x/denom));
-  // softmax with max subtraction
-  const weights = scaled.map(row=>{
-    const m = Math.max(...row);
-    const ex = row.map(x=>Math.exp(x-m));
+  const S = Qs.map(q=>Ks.map(k=>{ let s=0; for(let t=0;t<dkS;t++){ s += (q[t]||0)*(k[t]||0); } return s; }));
+  r.scores = S[0] ? S[0].slice() : [];
+  r.scoresAll = S;
+  // logits
+  const L = S.map(row=>row.map(s=>s/denom));
+  r.logits = L[0] ? L[0].slice() : [];
+  r.logitsAll = L;
+  // softmax rows
+  const A = L.map(row=>{
+    const m = Math.max.apply(null,row);
+    const ex = row.map(x=>Math.exp(Math.min(0,x-m)));
     const sum = ex.reduce((a,b)=>a+b,0);
-    if(!isFinite(sum) || sum<=0) return row.map(()=>1/row.length);
-    return ex.map(e=>e/sum);
+    return ex.map(e=> sum>0 ? e/sum : 1/row.length);
   });
-  const rowsums = weights.map(r=>r.reduce((a,b)=>a+b,0));
-  const output = weights.map(w=>{
-    const o = new Array(dv).fill(0);
-    for(let j=0;j<nk;j++) for(let c=0;c<dv;c++) o[c] += w[j]*(V[j][c]||0);
-    return o;
+  r.weights = A[0] ? A[0].slice() : [];
+  r.weightsAll = A;
+  r.rowsum = A.map(row=>row.reduce((a,b)=>a+b,0));
+  // output
+  const O = A.map(row=>{
+    const out = new Array(dv).fill(0);
+    for(let j=0;j<row.length;j++){ for(let t=0;t<dv;t++){ out[t] += row[j]*(Vs[j]?Vs[j][t]||0:0); } }
+    return out;
   });
-  return {dk, dv, nk, useScale, scores, scaled, weights, rowsums, output, note: note.join(" ")};
+  r.output = O[0] ? O[0].slice() : [];
+  r.outputAll = O;
+  // sweep of scaling factor 1/sqrt(dk) -> vary effective denom
+  const sweep = [];
+  for(let i=0;i<=40;i++){
+    const d = 0.25 + i*(6-0.25)/40;
+    const row = L[0]||[0];
+    const m = Math.max.apply(null,row.map(x=>x/d*denom));
+    const ex = row.map(x=>Math.exp(Math.min(0,(x/d*denom)-m)));
+    const sum = ex.reduce((a,b)=>a+b,0);
+    sweep.push({x:d, y: sum>0?ex[0]/sum:1/row.length});
+  }
+  r.sweep = sweep;
+  r.sweepCurrent = denom;
+  return r;
 }
 function render(V,p,r){
-  const qLabels = r.scores.map((_,i)=>"q"+(i+1));
-  const kLabels = r.scores[0].map((_,j)=>"k"+(j+1));
-  V.bars({
-    title: r.useScale ? "Scaled scores  Q K^T / sqrt(d_k)" : "Raw scores  Q K^T  (scaling off)",
-    labels: kLabels,
-    series: r.scores.map((row,i)=>({name:qLabels[i], values: r.useScale ? r.scaled[i] : row})),
-    yLabel:"score", xLabel:"key", digits:2
-  });
-  V.bars({
-    title:"Attention weights  softmax(scores)",
-    labels: kLabels,
-    series: r.weights.map((row,i)=>({name:qLabels[i], values:row})),
-    yLabel:"weight", xLabel:"key", digits:3, min:0, max:1,
-    refLines:[{y:1/r.nk, label:"uniform 1/"+r.nk}]
-  });
+  const fmt = (x,d)=>V.fmt(x,d===undefined?3:d);
+  const row = 0;
+  const w = r.weights||[];
+  const labels = w.map((_,j)=>"k"+(j+1));
   V.table({
-    title:"Output = weights · V",
-    columns:["query"].concat(r.output[0].map((_,c)=>"out v"+(c+1))),
-    rows: r.output.map((o,i)=>[qLabels[i]].concat(o)),
+    title:"Step by step for query row 1 (q1)",
+    columns:["key","q1 · k_j","/ sqrt(d_k)","exp","weight a_1j"],
+    rows:(r.scores||[]).map((s,j)=>{
+      const l = (r.logits||[])[j]||0;
+      const m = Math.max.apply(null,r.logits||[0]);
+      const e = Math.exp(Math.min(0,l-m));
+      return ["k"+(j+1), fmt(s), fmt(l), fmt(e), fmt(w[j])];
+    }),
     digits:3
   });
-  V.note("d_k = "+r.dk+", d_v = "+r.dv+", "+r.nk+" keys. Scaling "+(r.useScale?"ON (divide by sqrt("+r.dk+") = "+V.fmt(Math.sqrt(r.dk),3)+")":"OFF")+". Row sums of weights: "+r.rowsums.map(x=>V.fmt(x,3)).join(", ")+". Output row 1 = "+r.weights[0].map((w,j)=>V.fmt(w,3)+"·V"+ (j+1)).join(" + ") + " = "+r.output[0].map(x=>V.fmt(x,3)).join(", ")+"."+(r.note?" "+r.note:""));
+  V.note("d_k = "+r.dk+", scaling "+(p.scale?"ON":"OFF")+", divisor = "+fmt(r.denom)+
+    ". Row 1 weights sum to "+fmt(r.rowsum[0])+". Output row 1 = ["+r.output.map(x=>fmt(x)).join(", ")+"].");
+  V.bars({
+    title:"Attention weights for q1 (they sum to 1)",
+    labels:labels,
+    values:w,
+    yLabel:"weight a_1j",
+    xLabel:"key",
+    min:0, max:1, digits:3,
+    refLines:[{y:1/Math.max(1,w.length),label:"uniform"}]
+  });
+  V.bars({
+    title:"Output row 1 = weighted sum of value rows",
+    labels:(r.output||[]).map((_,t)=>"o"+(t+1)),
+    values:r.output,
+    yLabel:"output value",
+    xLabel:"output dimension",
+    digits:3
+  });
+  V.line({
+    title:"Weight on k1 as the divisor changes (current marked)",
+    series:[{name:"a_11",x:r.sweep.map(s=>s.x),y:r.sweep.map(s=>s.y)}],
+    points:[{x:r.sweepCurrent,y:w[0]||0,label:"current"}],
+    vlines:[{x:1,label:"no scaling"},{x:Math.sqrt(r.dk),label:"1/sqrt(d_k)"}],
+    xLabel:"divisor applied to scores",
+    yLabel:"weight a_11",
+    xmin:0.25, xmax:6, ymin:0, ymax:1
+  });
 }
 const checks=[
-  {name:"weights rows sum to 1", inputs:{Q:[[1,0],[0,1]],K:[[1,0],[0,1]],V:[[1,0],[0,1]],scale:true},
-   test:(r)=>r.rowsums.every(s=>Math.abs(s-1)<1e-9)},
-  {name:"equal scores give uniform weights 1/nk", inputs:{Q:[[1,1],[1,1]],K:[[1,1],[1,1]],V:[[1,0],[0,1]],scale:true},
-   test:(r)=>r.weights.every(row=>row.every(w=>Math.abs(w-0.5)<1e-9))},
-  {name:"output equals weighted sum of V", inputs:{Q:[[2,0],[0,1]],K:[[1,0],[0,1]],V:[[1,2],[3,4]],scale:true},
-   test:(r,p)=>{ const w=r.weights; const Vm=p.V; return r.output.every((o,i)=>o.every((x,c)=>{ let s=0; for(let j=0;j<r.nk;j++) s+=w[i][j]*Vm[j][c]; return Math.abs(s-x)<1e-9; })); }},
-  {name:"scaling off leaves scores unscaled", inputs:{Q:[[2,0]],K:[[1,0],[0,1]],V:[[1,0],[0,1]],scale:false},
-   test:(r)=>Math.abs(r.scaled[0][0]-2)<1e-9 && Math.abs(r.scaled[0][1]-0)<1e-9},
-  {name:"scaling on divides by sqrt(d_k)", inputs:{Q:[[2,0]],K:[[1,0],[0,1]],V:[[1,0],[0,1]],scale:true},
-   test:(r)=>Math.abs(r.scaled[0][0]-2/Math.sqrt(2))<1e-9}
+  {name:"weights of each row sum to 1",inputs:{Q:[[1,0],[0,1]],K:[[1,0],[0,1],[1,1]],V:[[1,0],[0,1],[1,1]],scale:true},
+   test:(r)=>r.rowsum.every(s=>Math.abs(s-1)<1e-9)},
+  {name:"output equals A V (row 1)",inputs:{Q:[[1,0],[0,1]],K:[[1,0],[0,1],[1,1]],V:[[1,0],[0,1],[1,1]],scale:true},
+   test:(r,p)=>{const A=r.weightsAll[0],Vv=p.V;return r.output.every((o,t)=>Math.abs(o-A.reduce((a,w,j)=>a+w*Vv[j][t],0))<1e-9);}},
+  {name:"equal scores give uniform weights",inputs:{Q:[[1,0]],K:[[1,0],[1,0],[1,0]],V:[[1,0],[0,1],[1,1]],scale:true},
+   test:(r)=>r.weights.every(x=>Math.abs(x-1/3)<1e-9)},
+  {name:"scaling off leaves scores unscaled",inputs:{Q:[[2,0]],K:[[3,0],[0,1],[1,1]],V:[[1,0],[0,1],[1,1]],scale:false},
+   test:(r)=>Math.abs(r.logits[0]-r.scores[0])<1e-9},
+  {name:"dominant score gives weight near 1",inputs:{Q:[[2,0]],K:[[3,0],[0,1],[1,1]],V:[[1,0],[0,1],[1,1]],scale:true},
+   test:(r)=>r.weights[0]>0.9}
 ];
 </script>
 <script>
@@ -760,21 +841,28 @@ const checks=[
   }
 
   /* ---------- readouts ---------- */
+  var prevR = null;  // readouts from before the latest change
+  function differs(a, b) { return typeof a === 'number' && typeof b === 'number' && isFinite(a) && isFinite(b) && Math.abs(a - b) > 1e-12 * Math.max(1, Math.abs(a), Math.abs(b)); }
   function readouts(r) {
     var box = $('pg-readouts'); box.innerHTML = '';
+    var pr = prevR; prevR = r ? clone(r) : null;
     (SPEC.readouts || []).forEach(function (ro) {
       var v = r ? r[ro.key] : undefined, d = h('div', { 'class': 'pg-ro' }, box);
       h('div', { 'class': 'pg-ro-label' }, d, lite(ro.label));
       var val = h('div', { 'class': 'pg-ro-val' }, d), digits = typeof ro.digits === 'number' ? ro.digits : undefined;
       if (Array.isArray(v) && Array.isArray(v[0])) {
         var t = h('table', { 'class': 'pg-mini' }, h('div', { 'class': 'pg-scroll' }, val));
-        v.forEach(function (row) { var tr = h('tr', {}, t); row.forEach(function (x) { h('td', {}, tr, lite(fmt(x, digits))); }); });
+        var pm = pr && Array.isArray(pr[ro.key]) ? pr[ro.key] : null;
+        v.forEach(function (row, i) { var tr = h('tr', {}, t); row.forEach(function (x, j) { h('td', pm && pm[i] && differs(x, pm[i][j]) ? { 'class': 'pg-chg', title: 'was ' + fmt(pm[i][j], digits) } : {}, tr, lite(fmt(x, digits))); }); });
         d.classList.add('pg-ro-wide');
       } else if (Array.isArray(v)) {
-        val.innerHTML = '[ ' + v.map(function (x) { return lite(fmt(x, digits)); }).join(', ') + ' ]';
+        var pa = pr && Array.isArray(pr[ro.key]) ? pr[ro.key] : null;
+        val.innerHTML = '[ ' + v.map(function (x, i) { var c = pa && differs(x, pa[i]); return (c ? '<span class="pg-chg" title="was ' + fmt(pa[i], digits) + '">' : '') + lite(fmt(x, digits)) + (c ? '</span>' : ''); }).join(', ') + ' ]';
         if (v.length > 4) d.classList.add('pg-ro-wide');
       } else {
         val.innerHTML = lite(fmt(v, digits)) + (ro.unit ? ' <span class="pg-unit">' + lite(ro.unit) + '</span>' : '');
+        var pv = pr ? pr[ro.key] : undefined;
+        if (differs(v, pv)) val.innerHTML += ' <span class="pg-was"><span class="' + (v > pv ? 'pg-up">▲' : 'pg-down">▼') + '</span> was ' + lite(fmt(pv, digits)) + '</span>';
       }
     });
     if (r && typeof r.note === 'string' && r.note) { var n = h('div', { 'class': 'pg-ro pg-ro-wide pg-ro-note' }, box); n.innerHTML = lite(r.note); }
@@ -789,7 +877,7 @@ const checks=[
     try { r = compute(clone(state)); }
     catch (e) { errBox('The calculation could not run for these inputs: ' + e.message); readouts(null); return; }
     readouts(r);
-    try { render(PG.makeV(f), clone(state), r); }
+    try { render(PG.makeV(f, { ghost: true }), clone(state), r); }
     catch (e) { errBox('The figure could not be drawn for these inputs: ' + e.message); }
   }
 
