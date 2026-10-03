@@ -32,7 +32,7 @@ function render(V,p,r){...} // r = compute(p). 2-3 panels: first the mechanism's
  V.heatmap({title,matrix,rowLabels,colLabels,min,max,digits})
  V.diagram({title,width,height,items:[{type:"rect",x,y,w,h,label,sub}|{type:"circle",cx,cy,r,label}|{type:"arrow"|"line",x1,y1,x2,y2,label,width}|{type:"text",x,y,text}]})
  V.table({title,columns,rows,digits}); V.note(html) // one line of worked arithmetic with live numbers; V.fmt(x,d)
-const checks=[{name,inputs:{control id:value},test:(r,p)=>bool}]; // 3-5 checks; inputs set every control the check relies on; expected values derived by hand from the formula
+const checks=[{name,inputs:{control id:value},test:(r,p)=>bool}]; // 3-5 checks of exact facts: a value hand-computed from the formula at simple inputs (0, 1, equal values), or a sum/symmetry/limit/ordering property. inputs set every control the check uses and really create the situation in its name. Compare with a relative tolerance (1e-6 for exact values, 5% for an approximation "≈"); never a vague guessed threshold ("x is low"): compute the expected number
 
 Rules: stay on the requested focus and audience; define terms before use; match the excerpt's notation; never invent results; every number shown comes from compute(); defaults are a typical non-special state so each control visibly changes the figure from them; guard every division (0/0 must not show NaN/undefined); presets use real control ids with values of the right shape. Be concise."""
 
