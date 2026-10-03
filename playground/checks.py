@@ -346,7 +346,7 @@ def run_js(spec: dict, code: str, timeout_s: float = 8.0):
         return rep
 
 
-def grounding_checks(spec: dict, case: dict, source_text: str):
+def grounding_checks(spec: dict, case: dict, source_text: str, fixes: list = None):
     """Cheap fidelity checks: cited numbers must exist in the source, and the focus's explicit asks must be mapped."""
     major = []
     focus = str((case or {}).get("focus", ""))
@@ -359,10 +359,23 @@ def grounding_checks(spec: dict, case: dict, source_text: str):
             if isinstance(g, dict):
                 fields.append(("grounding where", g.get("where")))
         bad = []
+
+        def unverified(val):
+            return [tok for tok in re.findall(r"\d+(?:\.\d+)+|(?<=\()\d+(?=\))|(?<=Eq\. )\d+|(?<=Equation )\d+|(?<=Section )\d+",
+                                              str(val or "")) if not re.search(r"(?<![\d.])" + re.escape(tok) + r"(?![\d])", hay)]
+        # deterministic fix: a "where" note with a number the excerpt does not contain falls back to the verified
+        # section (or is dropped), so no repair call is spent on it; source.section/equation still need a repair
+        sec = str(src.get("section") or "")
+        for g in gr.get("from_paper") or []:
+            if isinstance(g, dict) and g.get("where") and unverified(g["where"]):
+                old = g["where"]
+                g["where"] = sec if sec and not unverified(sec) else ""
+                if fixes is not None:
+                    fixes.append(f"citation '{old}' not in excerpt -> '{g['where']}'")
+        fields = [f for f in fields if f[0] != "grounding where"]
         for name, val in fields:
-            for tok in re.findall(r"\d+(?:\.\d+)+|(?<=\()\d+(?=\))|(?<=Eq\. )\d+|(?<=Equation )\d+|(?<=Section )\d+", str(val or "")):
-                if not re.search(r"(?<![\d.])" + re.escape(tok) + r"(?![\d])", hay):
-                    bad.append(f"{name} '{val}' ({tok})")
+            for tok in unverified(val):
+                bad.append(f"{name} '{val}' ({tok})")
         if bad:
             major.append("SPEC cites numbers not found in the excerpt or focus: " + "; ".join(sorted(set(bad))[:4]) +
                          ". Cite section/equation numbers exactly as written there, or omit the number.")
@@ -420,7 +433,7 @@ def evaluate(spec_in, code_text: str, case: dict = None, source_text: str = ""):
     res["spec"] = spec
     c, m, n = validate_spec(spec)
     res["critical"] += c; res["major"] += m; res["minor"] += n
-    res["major"] += grounding_checks(spec, case, source_text)
+    res["major"] += grounding_checks(spec, case, source_text, res["fixes"])
     if not code_text:
         res["critical"].append("CODE block is missing")
         return res

@@ -157,9 +157,12 @@ var PG = (function () {
       need(o && Array.isArray(o.series) && o.series.length, 'V.line: series array required');
       var xs = [], ys = [];
       o.series.forEach(function (sr, k) {
-        numArr(sr.x, 'V.line series ' + k + ' x'); numArr(sr.y, 'V.line series ' + k + ' y');
+        // null means "no value here" (e.g. no solution for that input): the line breaks there. NaN is still an error.
+        numArr(sr.x, 'V.line series ' + k + ' x');
+        need(Array.isArray(sr.y), 'V.line series ' + k + ' y must be an array');
+        for (var j = 0; j < sr.y.length; j++) need(sr.y[j] === null || isNum(sr.y[j]), 'V.line series ' + k + ' y[' + j + '] is not a finite number (' + sr.y[j] + ')');
         need(sr.x.length === sr.y.length, 'V.line series ' + k + ': x and y lengths differ');
-        xs = xs.concat(sr.x); ys = ys.concat(sr.y);
+        xs = xs.concat(sr.x); ys = ys.concat(sr.y.filter(function (v) { return v !== null; }));
       });
       (o.points || []).forEach(function (p, i) { need(isNum(p.x) && isNum(p.y), 'V.line: point ' + i + ' not finite'); xs.push(p.x); ys.push(p.y); });
       (o.vlines || []).forEach(function (v) { need(isNum(v.x), 'V.line: vline x not finite'); xs.push(v.x); });
@@ -225,7 +228,7 @@ var PG = (function () {
         var d = '';
         var pen = 'M';
         for (var i = 0; i < sr.x.length; i++) {
-          if ((lx && !(sr.x[i] > 0)) || (ly && !(sr.y[i] > 0))) { pen = 'M'; continue; }
+          if (sr.y[i] === null || (lx && !(sr.x[i] > 0)) || (ly && !(sr.y[i] > 0))) { pen = 'M'; continue; }
           d += pen + r2(X(sr.x[i])) + ' ' + r2(Y(sr.y[i])); pen = 'L';
         }
         var t = tone(sr.tone, CYCLE[k % 4]);
