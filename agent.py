@@ -135,7 +135,8 @@ def main() -> int:
 
         # ---- repair loop ----
         attempt = 0
-        regen = checks_repaired = False
+        regen = checks_repaired = code_for_checks = False
+        want = None
         # normal repairs; one extra fresh attempt is allowed only while the page would be unusable
         while (best[3]["critical"] or best[3]["major"]) and (attempt < MAX_REPAIRS or
                                                                (CK.unusable(best[3]) and attempt < MAX_REPAIRS + 1)):
@@ -149,16 +150,25 @@ def main() -> int:
                                "\nYour previous reply was cut off or malformed. Keep text and code compact and follow the block format exactly.",
                                GEN_MAX_TOKENS, "revise")
                 s_txt = c_txt = None
-            elif CK.only_self_checks(problems) and checks_repaired:
-                # one cheap repair already tried; the remaining disagreement is handled at assembly
+            elif CK.only_self_checks(problems) and checks_repaired and code_for_checks:
+                # a checks-only and a code repair were both tried; the remaining disagreement is handled at assembly
                 trace.event("revise", "stop_repairs", "self_checks_only", attempt=attempt)
                 break
             else:
-                want = {"CHECKS"} if CK.only_self_checks(problems) else CK.blocks_to_fix(problems)
+                asked = problems
+                if CK.only_self_checks(problems) and checks_repaired:
+                    # corrected checks still disagree with compute(): the computation itself is the likely bug
+                    # (a check that keeps failing must not simply be hidden), so ask for corrected code once
+                    want, code_for_checks = {"CODE"}, True
+                    asked = ["These self-tests still fail after the checks were rewritten, so compute() is "
+                                        "most likely wrong. Re-derive compute() step by step from the formula (indices, "
+                                        "off-by-one, normalisation, units) and return the full corrected CODE."] + problems
+                else:
+                    want = {"CHECKS"} if CK.only_self_checks(problems) else CK.blocks_to_fix(problems)
                 checks_repaired = checks_repaired or want == {"CHECKS"}
                 trace.event("revise", "request_repair", "started", attempt=attempt, n_problems=len(problems),
-                            blocks=sorted(want), reasons=[p[:160] for p in problems[:6]])
-                raw = llm.chat(REPAIR_SYSTEM, repair_prompt(r["spec"], c_txt, problems, focus, want),
+                            blocks=sorted(want), reasons=[p[:160] for p in asked[:6]])
+                raw = llm.chat(REPAIR_SYSTEM, repair_prompt(r["spec"], c_txt, asked, focus, want),
                                REPAIR_MAX_TOKENS, "revise")
                 s_txt = r["spec"]  # carry deterministic fixes forward
             ns, nc = CK.parse_blocks(raw)
@@ -186,6 +196,8 @@ def main() -> int:
                     regen = True
                     trace.event("revise", "switch_to_regenerate", "no_progress", attempt=attempt)
                     continue
+                if want == {"CHECKS"} and CK.only_self_checks(best[3]["critical"] + best[3]["major"]):
+                    continue  # the next request is a different one: corrected code
                 # same failures after a repair: another identical request would waste tokens
                 trace.event("revise", "stop_repairs", "no_progress", attempt=attempt)
                 break
