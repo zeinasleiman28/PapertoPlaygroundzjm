@@ -483,7 +483,7 @@ def blocks_to_fix(problems):
     for p in problems:
         if "has no effect" in p:
             need.add("CODE")
-        elif p.startswith(("brief requirement", "the focus asks")):
+        elif p.startswith(("brief requirement", "the focus asks")) or " compares states:" in p:
             need.update({"SPEC", "CODE"})
         elif p.startswith(("SPEC", "control ", "slider", "select", "toggle", "vector", "matrix", "number control",
                          "duplicate control", "exploration")) or "preset uses unknown" in p:

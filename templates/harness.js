@@ -122,6 +122,27 @@ function __run(spec) {
       rep.stats.live_numbers += ((String(e[k] || '').match(/\{r\./g)) || []).length - f.bad.length;
       if (f.bad.length) rep.major.push('exploration ' + (i + 1) + ' ' + k + ': placeholder ' + f.bad.join(', ') + ' does not resolve to a value in compute() output at its preset; available keys: ' + Object.keys(r).join(', '));
     });
+    // every placeholder is filled at the one preset, so text that quotes another setting ("at T=1 ... at T=5") and
+    // reuses a placeholder shows the same number for both states
+    var txt = ['change', 'observe', 'why'].map(function (k) { return String(e[k] || ''); }).join(' ');
+    var seen = {}, dup = [];
+    (txt.match(/\{r\.[^}:]+/g) || []).forEach(function (m) { var key = m.slice(3); if (seen[key] === 1) dup.push(key); seen[key] = (seen[key] || 0) + 1; });
+    if (!dup.length) return;
+    var pv = merged(e.preset), other = [];
+    C.forEach(function (c) {
+      if (c.type !== 'slider' || typeof pv[c.id] !== 'number') return;
+      var names = [c.id].concat(String(c.label || '').split(/[\s(),]+/).filter(function (w) { return w && (w.length <= 2 || /[^\x00-\x7f]/.test(w)); }));
+      names.forEach(function (nm) {
+        var re = new RegExp('(^|[^\\w])' + nm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\s*=\\s*(-?\\d*\\.?\\d+)', 'g'), mm;
+        while ((mm = re.exec(txt))) {
+          var v = parseFloat(mm[2]);
+          if (Math.abs(v - pv[c.id]) > 1e-9 * Math.max(1, Math.abs(v)) && other.indexOf(nm + '=' + mm[2]) < 0) other.push(nm + '=' + mm[2]);
+        }
+      });
+    });
+    if (other.length) rep.major.push('exploration ' + (i + 1) + ' compares states: the text quotes ' + other.join(', ') +
+      ' (not the preset) and reuses ' + dup.map(function (d) { return '{r.' + d + '}'; }).join(', ') +
+      ', but every placeholder is filled at the preset, so both states show the same number. Return each other-state value from compute() under its own key (e.g. q_at_T1) and use it in the text.');
   });
 
   var defaultPanels = 0;
