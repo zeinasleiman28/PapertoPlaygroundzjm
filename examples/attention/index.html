@@ -1,0 +1,786 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Interactive explanation</title>
+<style>
+:root{
+  --paper:#F5F7F8; --panel:#FFFFFF; --ink:#16202A; --muted:#566573; --rule:#D3DBE1; --grid:#E7ECEF;
+  --accent:#0A7470; --accent-soft:#D8EEEC; --alt:#B4600B; --alt-soft:#F6E5D2; --ours:#6A4A9C; --ours-soft:#ECE5F5;
+  --warn:#B3261E; --ok:#1F7A3A;
+  --serif:Charter,"Bitstream Charter","Sitka Text",Cambria,Georgia,serif;
+  --sans:system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+}
+@media (prefers-color-scheme: dark){
+  :root{ --paper:#0F151B; --panel:#151D25; --ink:#E4EBF0; --muted:#9AA9B5; --rule:#2A3641; --grid:#1D2731;
+    --accent:#3BC2BA; --accent-soft:#163A3A; --alt:#F0A046; --alt-soft:#3B2A16; --ours:#B79BE3; --ours-soft:#2C2340;
+    --warn:#FF8A80; --ok:#6FD38E; }
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--paper);color:var(--ink);font:17px/1.62 var(--serif)}
+a{color:var(--accent)}
+:focus-visible{outline:3px solid var(--alt);outline-offset:2px}
+.pg-head{max-width:1280px;margin:0 auto;padding:36px 28px 12px}
+.pg-head h1{font:600 clamp(28px,3.6vw,42px)/1.12 var(--sans);letter-spacing:-.015em;margin:0 0 10px;max-width:26ch}
+.pg-tagline{font-size:20px;line-height:1.45;color:var(--muted);margin:0 0 12px;max-width:62ch}
+.pg-source{font:14px/1.5 var(--sans);color:var(--muted);margin:0}
+.pg-source cite{font-style:italic;color:var(--ink)}
+.pg-layout{max-width:1280px;margin:0 auto;padding:12px 28px 48px;display:grid;grid-template-columns:minmax(0,5fr) minmax(0,6fr);column-gap:40px;align-items:start}
+.pg-intro{grid-column:1;grid-row:1}
+.pg-rest{grid-column:1;grid-row:2}
+.pg-bench{grid-column:2;grid-row:1 / span 2;position:sticky;top:16px;max-height:calc(100vh - 32px);overflow:auto}
+.pg-intro h2,.pg-rest h2,.pg-bench h2{font:600 15px/1.3 var(--sans);color:var(--accent);margin:34px 0 8px;letter-spacing:.01em}
+.pg-intro h2:first-child{margin-top:14px}
+p{margin:0 0 12px;max-width:68ch}
+.pg-formula{font-size:21px;padding:14px 18px;margin:8px 0 14px;background:var(--panel);border:1px solid var(--rule);border-left:4px solid var(--accent);border-radius:4px;overflow-x:auto}
+sub,sup{font-size:.72em;line-height:0}
+.pg-symbols{border-collapse:collapse;width:100%;font-size:16px}
+.pg-symbols th{text-align:left;font-weight:600;padding:6px 14px 6px 0;vertical-align:top;white-space:nowrap;border-bottom:1px solid var(--rule)}
+.pg-symbols td{padding:6px 0;border-bottom:1px solid var(--rule)}
+.pg-symbols tr:first-child td,.pg-symbols tr:first-child th{border-top:1px solid var(--rule)}
+
+/* The bench: a graph-paper instrument panel that the narrative drives */
+.pg-bench{background-color:var(--panel);background-image:linear-gradient(var(--grid) 1px,transparent 1px),linear-gradient(90deg,var(--grid) 1px,transparent 1px);background-size:22px 22px;border:1px solid var(--rule);border-radius:10px;padding:6px 20px 20px}
+.pg-bench.pg-flash{animation:pgflash .9s ease-out}
+@keyframes pgflash{0%{box-shadow:0 0 0 4px var(--alt)}100%{box-shadow:0 0 0 0 transparent}}
+@media (prefers-reduced-motion: reduce){.pg-bench.pg-flash{animation:none}}
+.pg-bench h2{margin-top:16px}
+#pg-figure{display:flex;flex-direction:column;gap:10px}
+.pg-panel{margin:0;background:var(--panel);border:1px solid var(--rule);border-radius:6px;padding:10px 10px 6px}
+.pg-panel-title{font:600 14px/1.3 var(--sans);margin:0 0 4px}
+.pg-svg{width:100%;height:auto;display:block;font-family:var(--sans);max-height:330px}
+.pg-figcap{font:14px/1.5 var(--sans);color:var(--muted);margin:8px 0 0}
+.pg-t,.pg-tick,.pg-val,.pg-legend,.pg-axlabel,.pg-reflabel,.pg-dlabel,.pg-dsub,.pg-dtext{fill:var(--ink);font-family:var(--sans)}
+.pg-tick{font-size:12px;fill:var(--muted)}
+.pg-val{font-size:12px;font-variant-numeric:tabular-nums;font-weight:600}
+.pg-val-inv{fill:var(--panel)}
+.pg-axlabel{font-size:13px;fill:var(--muted)}
+.pg-legend{font-size:12px}
+.pg-reflabel{font-size:12px;fill:var(--alt)}
+.pg-dlabel{font-size:15px;font-weight:600}
+.pg-dsub{font-size:12px;fill:var(--muted)}
+.pg-dtext{font-size:14px}
+.pg-gridline{stroke:var(--grid);stroke-width:1}
+.pg-axis{stroke:var(--muted);stroke-width:1}
+.pg-ref{stroke:var(--alt);stroke-width:1.5;stroke-dasharray:5 4}
+.pg-dashed{stroke-dasharray:6 5}
+.pg-dot{stroke:var(--panel);stroke-width:2}
+.pg-hl{fill:none;stroke:var(--alt);stroke-width:3}
+.pg-fill-accent{fill:var(--accent)} .pg-fill-alt{fill:var(--alt)} .pg-fill-warn{fill:var(--warn)} .pg-fill-muted{fill:var(--muted)} .pg-fill-ink{fill:var(--ink)} .pg-fill-ours{fill:var(--ours)}
+.pg-stroke-accent{stroke:var(--accent)} .pg-stroke-alt{stroke:var(--alt)} .pg-stroke-warn{stroke:var(--warn)} .pg-stroke-muted{stroke:var(--muted)} .pg-stroke-ink{stroke:var(--ink)} .pg-stroke-ours{stroke:var(--ours)}
+path[class^="pg-stroke"],line[class^="pg-stroke"]{fill:none;stroke-width:2.5;stroke-linecap:round}
+.pg-soft-accent{fill:var(--accent-soft);stroke:var(--accent);stroke-width:1.5} .pg-soft-alt{fill:var(--alt-soft);stroke:var(--alt);stroke-width:1.5}
+.pg-soft-ours{fill:var(--ours-soft);stroke:var(--ours);stroke-width:1.5} .pg-soft-muted{fill:var(--grid);stroke:var(--muted);stroke-width:1.5}
+.pg-soft-warn{fill:var(--alt-soft);stroke:var(--warn);stroke-width:1.5} .pg-soft-ink{fill:var(--panel);stroke:var(--ink);stroke-width:1.5}
+[class^="pg-box-"]{fill:none;stroke-width:1.5} .pg-box-accent{stroke:var(--accent)} .pg-box-alt{stroke:var(--alt)} .pg-box-ours{stroke:var(--ours)} .pg-box-muted{stroke:var(--muted)} .pg-box-ink{stroke:var(--ink)} .pg-box-warn{stroke:var(--warn)}
+.pg-tone-accent{fill:var(--accent)} .pg-tone-alt{fill:var(--alt)} .pg-tone-ours{fill:var(--ours)} .pg-tone-muted{fill:var(--muted)} .pg-tone-warn{fill:var(--warn)}
+.pg-note{font:15px/1.5 var(--sans);margin:0;padding:8px 12px;background:var(--panel);border:1px solid var(--rule);border-radius:6px;font-variant-numeric:tabular-nums;max-width:none;overflow-wrap:anywhere}
+.pg-note-alt{border-left:4px solid var(--alt)} .pg-note-accent{border-left:4px solid var(--accent)} .pg-note-ours{border-left:4px solid var(--ours)} .pg-note-warn{border-left:4px solid var(--warn)}
+.pg-error{font:15px/1.5 var(--sans);color:var(--warn);background:var(--panel);border:1px solid var(--warn);border-radius:6px;padding:10px 12px;margin:0}
+.pg-scroll{overflow-x:auto}
+.pg-table{border-collapse:collapse;font:14px/1.4 var(--sans);font-variant-numeric:tabular-nums;width:100%}
+.pg-table th,.pg-table td{padding:5px 10px;border-bottom:1px solid var(--rule);text-align:right}
+.pg-table th:first-child,.pg-table td:first-child{text-align:left}
+.pg-hlrow td{background:var(--alt-soft)}
+
+/* controls */
+.pg-controls-head{display:flex;justify-content:space-between;align-items:baseline;gap:12px}
+#pg-controls{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px 18px;font-family:var(--sans)}
+.pg-ctl{background:var(--panel);border:1px solid var(--rule);border-radius:6px;padding:10px 12px}
+.pg-ctl-vector,.pg-ctl-matrix{grid-column:1 / -1}
+.pg-ctl-label{display:flex;justify-content:space-between;gap:8px;font-size:14px;font-weight:600;margin-bottom:6px}
+.pg-ctl-row{display:flex;align-items:center;gap:10px}
+.pg-ctl-row .pg-ctl-label{margin:0}
+.pg-ctl-val{font-variant-numeric:tabular-nums;color:var(--alt);font-weight:700;white-space:nowrap}
+.pg-help{font-size:13px;color:var(--muted);margin-top:6px;line-height:1.4}
+input[type=range]{width:100%;accent-color:var(--accent)}
+input[type=checkbox]{width:20px;height:20px;accent-color:var(--accent);flex:none}
+input[type=number],select{font:15px var(--sans);font-variant-numeric:tabular-nums;color:var(--ink);background:var(--paper);border:1px solid var(--rule);border-radius:4px;padding:5px 6px;width:100%;min-width:0}
+.pg-vec{display:grid;grid-template-columns:repeat(auto-fill,minmax(78px,1fr));gap:8px}
+.pg-vec-cell{display:flex;flex-direction:column;gap:2px}
+.pg-vec-lab{font-size:12px;color:var(--muted)}
+.pg-mat{border-collapse:separate;border-spacing:4px;font-size:13px}
+.pg-mat th{color:var(--muted);font-weight:600;padding:0 4px;white-space:nowrap}
+.pg-mat input{width:76px}
+.pg-resize{display:flex;gap:8px;margin-top:8px;flex-wrap:wrap}
+.pg-btn{font:600 14px var(--sans);color:var(--accent);background:var(--panel);border:1.5px solid var(--accent);border-radius:6px;padding:7px 12px;cursor:pointer}
+.pg-btn:hover{background:var(--accent-soft)}
+.pg-btn:disabled{opacity:.45;cursor:not-allowed}
+.pg-btn-small{font-size:13px;padding:4px 10px}
+#pg-readouts{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;font-family:var(--sans)}
+.pg-ro{background:var(--panel);border:1px solid var(--rule);border-radius:6px;padding:8px 12px}
+.pg-ro-wide{grid-column:1 / -1}
+.pg-ro-note{font-size:14px;border-left:4px solid var(--alt)}
+.pg-ro-label{font-size:13px;color:var(--muted);line-height:1.35}
+.pg-ro-val{font-size:18px;font-weight:650;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+.pg-unit{font-size:13px;color:var(--muted);font-weight:500}
+.pg-mini{border-collapse:collapse;font-size:14px}
+.pg-mini td{padding:2px 12px 2px 0}
+
+/* narrative */
+.pg-exp{border-top:1px solid var(--rule);padding:14px 0 16px}
+.pg-exp:first-of-type{border-top:none;padding-top:4px}
+.pg-exp h3{font:600 18px/1.35 var(--sans);margin:0 0 8px}
+.pg-exp dl{display:grid;grid-template-columns:auto 1fr;gap:4px 14px;margin:0 0 12px}
+.pg-exp dt{font:600 14px/1.9 var(--sans);color:var(--alt)}
+.pg-exp dd{margin:0}
+.pg-limit{border-left:4px solid var(--alt);padding:4px 0 4px 16px}
+.pg-limit-kind{font:600 15px var(--sans);color:var(--alt);margin:0 0 4px}
+.pg-ground{display:grid;gap:14px}
+.pg-ground-col{padding:2px 0 2px 16px}
+.pg-ground-col h3{font:600 15px var(--sans);margin:0 0 4px}
+.pg-gp{border-left:4px solid var(--accent)} .pg-gp h3{color:var(--accent)}
+.pg-go{border-left:4px dashed var(--ours)} .pg-go h3{color:var(--ours)}
+.pg-ground ul{margin:0;padding-left:20px}
+.pg-ground li{margin:3px 0}
+.pg-where{font:13px var(--sans);color:var(--muted)}
+.pg-disclaimer{font-size:15px;color:var(--muted)}
+.pg-checks{font:14px/1.5 var(--sans);list-style:none;margin:0;padding:0}
+.pg-checks li{padding:4px 0 4px 26px;position:relative}
+.pg-checks li::before{position:absolute;left:0;font-weight:700}
+.pg-ok::before{content:"\2713";color:var(--ok)} .pg-fail::before{content:"\2717";color:var(--warn)}
+#pg-checks-sum{font:14px var(--sans);color:var(--muted)}
+footer{max-width:1280px;margin:0 auto;padding:0 28px 32px;font:13px var(--sans);color:var(--muted)}
+
+@media (max-width:960px){
+  .pg-layout{display:block;padding:8px 18px 40px}
+  .pg-bench{position:static;max-height:none;margin:22px 0 8px;scroll-margin-top:8px}
+  .pg-head{padding:24px 18px 8px}
+  body{font-size:16.5px}
+}
+</style>
+</head>
+<body>
+<header class="pg-head">
+  <h1 id="pg-title"></h1>
+  <p class="pg-tagline" id="pg-tagline"></p>
+  <p class="pg-source" id="pg-source"></p>
+</header>
+<main class="pg-layout">
+  <section class="pg-intro" aria-labelledby="h-idea">
+    <h2 id="h-idea">The idea</h2>
+    <div id="pg-idea"></div>
+    <h2>Why it matters</h2>
+    <div id="pg-why"></div>
+    <h2>The key relationship</h2>
+    <div class="pg-formula" id="pg-formula"></div>
+    <div id="pg-symbols-wrap"><h3>What each symbol means</h3><table class="pg-symbols"><tbody id="pg-symbols"></tbody></table></div>
+  </section>
+
+  <aside class="pg-bench" id="pg-bench" aria-label="Interactive model">
+    <div class="pg-controls-head"><h2>Change the inputs</h2><button type="button" class="pg-btn pg-btn-small" id="pg-reset">Reset inputs</button></div>
+    <div id="pg-controls"></div>
+    <h2>What the model shows</h2>
+    <div id="pg-figure" aria-live="polite"></div>
+    <p class="pg-figcap" id="pg-figcap"></p>
+    <h2>Computed values</h2>
+    <div id="pg-readouts" aria-live="polite"></div>
+  </aside>
+
+  <section class="pg-rest">
+    <h2>Guided experiments</h2>
+    <div id="pg-explore"></div>
+    <h2>Watch out</h2>
+    <div class="pg-limit"><p class="pg-limit-kind" id="pg-limit-kind"></p><div id="pg-limit"></div></div>
+    <h2>Where this comes from</h2>
+    <div class="pg-ground">
+      <div class="pg-ground-col pg-gp"><h3>Stated in the paper</h3><ul id="pg-from-paper"></ul></div>
+      <div class="pg-ground-col pg-go"><h3>Our simplifications and examples</h3><ul id="pg-ours"></ul></div>
+    </div>
+    <p class="pg-disclaimer">This page is a small teaching model. Its numbers come from the calculation running in your browser, not from the paper's experiments, and it does not reproduce the paper's reported results.</p>
+    <h2>Built-in checks</h2>
+    <p id="pg-checks-sum"></p>
+    <ul class="pg-checks" id="pg-checks"></ul>
+  </section>
+</main>
+<footer>Generated automatically by a Paper-to-Playground agent. All calculations run locally in this page; no network access is needed.</footer>
+<script type="application/json" id="pg-spec">{"title": "Scaled Dot-Product Attention", "tagline": "Softmax turns query–key dot products into weights that mix the value vectors.", "source": {"paper": "Attention Is All You Need", "authors": "Vaswani et al.", "url": "https://arxiv.org/html/1706.03762v7", "section": "3.2.1 Scaled Dot-Product Attention", "equation": "Attention(Q, K, V) = softmax(Q K^T / sqrt(d_k)) V"}, "idea": "Each query is compared with every key by a dot product, giving a similarity score. Dividing by sqrt(d_k) keeps those scores from growing with dimension, and softmax turns each row of scores into weights that sum to 1. The output row is then the weighted average of the value vectors, so a large weight pulls the output toward that value.", "why": "Scaling by 1/sqrt(d_k) prevents large dot products from saturating the softmax, where gradients become extremely small.", "formula": "Attention(Q, K, V) = softmax(Q K^T / sqrt(d_k)) V", "symbols": [{"symbol": "Q", "meaning": "matrix of queries, one row per query, each of dimension d_k"}, {"symbol": "K", "meaning": "matrix of keys, one row per key, each of dimension d_k"}, {"symbol": "V", "meaning": "matrix of values, one row per key, each of dimension d_v"}, {"symbol": "d_k", "meaning": "dimension of the query and key vectors (number of columns of Q and K)"}, {"symbol": "Q K^T", "meaning": "matrix of raw dot-product similarity scores, entry (i,j) = q_i · k_j"}, {"symbol": "sqrt(d_k)", "meaning": "scaling factor; divides every score"}, {"symbol": "softmax", "meaning": "row-wise normalisation: exp(score)/sum of exp(scores) in that row"}, {"symbol": "Attention(Q,K,V)", "meaning": "output matrix, one row per query, each of dimension d_v"}], "controls": [{"id": "Q", "type": "matrix", "label": "Q (queries)", "value": [[1, 0], [0, 1]], "rowLabels": ["q1", "q2"], "colLabels": ["d1", "d2"], "min": -3, "max": 3, "step": 0.5}, {"id": "K", "type": "matrix", "label": "K (keys)", "value": [[1, 0], [0, 1]], "rowLabels": ["k1", "k2"], "colLabels": ["d1", "d2"], "min": -3, "max": 3, "step": 0.5}, {"id": "V", "type": "matrix", "label": "V (values)", "value": [[1, 0], [0, 1]], "rowLabels": ["v1", "v2"], "colLabels": ["c1", "c2"], "min": -3, "max": 3, "step": 0.5}, {"id": "scale", "type": "toggle", "label": "Divide scores by sqrt(d_k)", "value": true}], "readouts": [{"key": "scores", "label": "Raw scores Q K^T", "digits": 2}, {"key": "scaled", "label": "Scaled scores", "digits": 2}, {"key": "weights", "label": "Attention weights (rows sum to 1)", "digits": 3}, {"key": "output", "label": "Output = weights · V", "digits": 3}, {"key": "rowSums", "label": "Weight row sums", "digits": 3}], "figure_caption": "Top: the score matrix (raw or scaled) as a heatmap. Middle: the attention weights, one row per query. Bottom: the output rows, each a weighted mix of the value rows.", "explorations": [{"title": "Equal scores → uniform weights", "preset": {"Q": [[1, 0], [0, 1]], "K": [[1, 0], [0, 1]], "V": [[1, 0], [0, 1]], "scale": true}, "change": "Set Q and K so every query has the same dot product with every key.", "observe": "Scores are {r.scores[0][0]} and {r.scores[0][1]}, so weights are {r.weights[0][0]} and {r.weights[0][1]} — each row sums to {r.rowSums[0]}. The output row {r.output[0]} is the plain average of the value rows.", "why": "Equal scores give equal exponentials, so softmax spreads weight evenly and the output is the mean of V."}, {"title": "Dominant score → output copies one value", "preset": {"Q": [[2, 0], [0, 1]], "K": [[1, 0], [0, 1]], "V": [[1, 0], [0, 1]], "scale": true}, "change": "Make query q1 align strongly with key k1 only.", "observe": "q1's scores are {r.scores[0][0]} and {r.scores[0][1]}; after scaling and softmax the weights are {r.weights[0][0]} and {r.weights[0][1]}. The output row {r.output[0]} is almost exactly value row v1 = {r.output[0]}.", "why": "A large positive score dominates the softmax, so nearly all weight lands on that value and the output approaches it."}], "limitation": {"kind": "Common misunderstanding", "text": "Scaling does not change which key is most similar — it only shrinks the scores so the softmax stays in a well-behaved range. With d_k = 2 the effect is mild; it matters most when d_k is large and dot products grow in magnitude."}, "grounding": {"from_paper": [{"claim": "The output is a weighted sum of the values, with weights from a compatibility function of the query with the corresponding key.", "where": "Section 3.2"}, {"claim": "Attention(Q,K,V) = softmax(Q K^T / sqrt(d_k)) V.", "where": "Equation 1, Section 3.2.1"}, {"claim": "Dot-product attention is identical except for the scaling factor 1/sqrt(d_k).", "where": "Section 3.2.1"}, {"claim": "For large d_k the dot products grow large, pushing softmax into regions with extremely small gradients; scaling counteracts this.", "where": "Section 3.2.1 and footnote"}], "ours": ["Toy 2×2 matrices with d_k = d_v = 2 so every number is hand-checkable.", "Only two queries and two keys; real attention uses many rows and d_k in the tens or hundreds.", "No masking, no multi-head splitting, no training — this is a single forward computation."]}}</script>
+<script>
+/* Paper-to-Playground visual library. Generic: contains no paper-specific content.
+   Exposes PG.fmt, PG.lite, PG.makeV(container). Depends only on a minimal DOM. */
+var PG = (function () {
+  'use strict';
+  var NS = 'http://www.w3.org/2000/svg';
+
+  function fmt(x, d) {
+    if (x === null || x === undefined) return '\u2014';
+    if (typeof x === 'boolean') return x ? 'true' : 'false';
+    if (typeof x !== 'number') return String(x);
+    if (!isFinite(x)) return isNaN(x) ? 'NaN' : (x > 0 ? '\u221e' : '\u2212\u221e');
+    if (typeof d === 'number') return x.toFixed(d);
+    var a = Math.abs(x);
+    if (a === 0) return '0';
+    if (a >= 1e5 || a < 1e-3) return x.toExponential(2);
+    return String(+x.toPrecision(4));
+  }
+
+  // Minimal safe HTML: escape tags, then re-allow a few inline ones.
+  function lite(s) {
+    if (s === null || s === undefined) return '';
+    s = String(s).replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    return s.replace(/&lt;(\/?)(sub|sup|b|i|em|strong|code|br|small)\s*\/?&gt;/g, '<$1$2>');
+  }
+  function plain(s) { return String(s === undefined || s === null ? '' : s).replace(/<[^>]*>/g, ''); }
+
+  function h(tag, attrs, parent, svg) {
+    var e = svg ? document.createElementNS(NS, tag) : document.createElement(tag);
+    if (attrs) for (var k in attrs) if (attrs[k] !== undefined && attrs[k] !== null) e.setAttribute(k, String(attrs[k]));
+    if (parent) parent.appendChild(e);
+    return e;
+  }
+  function s(tag, attrs, parent) { return h(tag, attrs, parent, true); }
+  function r2(v) { return Math.round(v * 100) / 100; }
+  function txt(parent, x, y, str, cls, anchor, extra) {
+    var a = { x: r2(x), y: r2(y), 'class': cls || 'pg-t', 'text-anchor': anchor || 'middle' };
+    if (extra) for (var k in extra) a[k] = extra[k];
+    var t = s('text', a, parent);
+    t.textContent = plain(str);
+    return t;
+  }
+
+  function need(cond, msg) { if (!cond) throw new Error(msg); }
+  function isNum(v) { return typeof v === 'number' && isFinite(v); }
+  function numArr(a, name) {
+    need(Array.isArray(a), name + ' must be an array');
+    for (var i = 0; i < a.length; i++) need(isNum(a[i]), name + '[' + i + '] is not a finite number (' + a[i] + ')');
+    return a;
+  }
+
+  function niceStep(span, n) {
+    var raw = span / Math.max(1, n), p = Math.pow(10, Math.floor(Math.log10(raw))), f = raw / p;
+    return (f < 1.5 ? 1 : f < 3 ? 2 : f < 7 ? 5 : 10) * p;
+  }
+  function ticks(lo, hi, n) {
+    if (hi - lo < 1e-12) { hi = lo + 1; }
+    var st = niceStep(hi - lo, n || 5), out = [];
+    for (var v = Math.ceil(lo / st - 1e-9) * st; v <= hi + st * 1e-9; v += st) out.push(Math.abs(v) < st * 1e-9 ? 0 : +v.toPrecision(12));
+    return out;
+  }
+  function range(vals, lo, hi, includeZero) {
+    var mn = Infinity, mx = -Infinity;
+    for (var i = 0; i < vals.length; i++) { if (vals[i] < mn) mn = vals[i]; if (vals[i] > mx) mx = vals[i]; }
+    if (!isFinite(mn)) { mn = 0; mx = 1; }
+    if (includeZero) { mn = Math.min(mn, 0); mx = Math.max(mx, 0); }
+    if (isNum(lo)) mn = lo;
+    if (isNum(hi)) mx = hi;
+    if (mx - mn < 1e-12) { var pad = Math.abs(mx) > 0 ? Math.abs(mx) * 0.5 : 1; mx += pad; if (!includeZero) mn -= pad; }
+    return [mn, mx];
+  }
+  var TONES = { accent: 1, alt: 1, warn: 1, muted: 1, ink: 1, ours: 1 };
+  function tone(t, dflt) { return TONES[t] ? t : (dflt || 'accent'); }
+  var CYCLE = ['accent', 'ours', 'alt', 'muted'];
+
+  function makeV(container) {
+    var V = {}, uid = 0;
+    function panel(title) {
+      var f = h('figure', { 'class': 'pg-panel' }, container);
+      if (title) { var c = h('div', { 'class': 'pg-panel-title' }, f); c.innerHTML = lite(title); }
+      return f;
+    }
+    function svgBox(parent, w, hgt, label) {
+      return s('svg', { viewBox: '0 0 ' + w + ' ' + hgt, 'class': 'pg-svg', role: 'img', 'aria-label': plain(label || 'figure'), preserveAspectRatio: 'xMidYMid meet' }, parent);
+    }
+    function axes(g, x0, y0, x1, y1, yLo, yHi, yLabel, xLabel, d) {
+      var ys = ticks(yLo, yHi, 5);
+      for (var i = 0; i < ys.length; i++) {
+        var yy = y1 - (ys[i] - yLo) / (yHi - yLo) * (y1 - y0);
+        s('line', { x1: x0, x2: x1, y1: r2(yy), y2: r2(yy), 'class': 'pg-gridline' }, g);
+        txt(g, x0 - 6, yy + 4, fmt(ys[i], d), 'pg-tick', 'end');
+      }
+      s('line', { x1: x0, x2: x0, y1: y0, y2: y1, 'class': 'pg-axis' }, g);
+      if (yLabel) txt(g, 14, (y0 + y1) / 2, yLabel, 'pg-axlabel', 'middle', { transform: 'rotate(-90 14 ' + r2((y0 + y1) / 2) + ')' });
+      if (xLabel) txt(g, (x0 + x1) / 2, y1 + 40, xLabel, 'pg-axlabel');
+    }
+    function legend(g, items, x, y) {
+      items.forEach(function (it, k) {
+        s('rect', { x: x, y: r2(y + k * 16), width: 10, height: 10, 'class': 'pg-fill-' + it.t }, g);
+        txt(g, x + 15, y + k * 16 + 9, it.name, 'pg-legend', 'start');
+      });
+    }
+
+    /* Bar chart. o: {title, labels, values | series:[{name, values, tone}], highlight, yLabel, xLabel, min, max, digits, refLines:[{y,label}], showValues} */
+    V.bars = function (o) {
+      need(o && Array.isArray(o.labels), 'V.bars: labels array required');
+      var series = o.series || [{ name: o.name || '', values: o.values, tone: o.tone }];
+      need(series.length >= 1, 'V.bars: values or series required');
+      var all = [];
+      series.forEach(function (sr, k) {
+        numArr(sr.values, 'V.bars series ' + k + ' values');
+        need(sr.values.length === o.labels.length, 'V.bars: labels length ' + o.labels.length + ' != values length ' + sr.values.length);
+        all = all.concat(sr.values);
+      });
+      (o.refLines || []).forEach(function (r) { need(isNum(r.y), 'V.bars: refLine y must be finite'); all.push(r.y); });
+      var rg = range(all, o.min, o.max, true), lo = rg[0], hi = rg[1];
+      var W = 640, H = 300, ml = 58, mr = 14, mt = 18, mb = o.xLabel ? 58 : 40;
+      var f = panel(o.title), svg = svgBox(f, W, H, o.title), g = s('g', {}, svg);
+      var x0 = ml, x1 = W - mr, y0 = mt, y1 = H - mb;
+      axes(g, x0, y0, x1, y1, lo, hi, o.yLabel, o.xLabel);
+      var Y = function (v) { return y1 - (Math.max(lo, Math.min(hi, v)) - lo) / (hi - lo) * (y1 - y0); };
+      s('line', { x1: x0, x2: x1, y1: r2(Y(0)), y2: r2(Y(0)), 'class': 'pg-axis' }, g);
+      var n = o.labels.length, gw = (x1 - x0) / Math.max(1, n), bw = Math.min(70, gw * 0.72 / series.length);
+      var hl = o.highlight === undefined || o.highlight === null ? [] : [].concat(o.highlight);
+      for (var i = 0; i < n; i++) {
+        var cx = x0 + gw * (i + 0.5);
+        series.forEach(function (sr, k) {
+          var v = sr.values[i], bx = cx - bw * series.length / 2 + bw * k;
+          var top = Math.min(Y(v), Y(0)), hh = Math.max(0.5, Math.abs(Y(v) - Y(0)));
+          var t = hl.indexOf(i) >= 0 ? 'alt' : tone(sr.tone, CYCLE[k % 4]);
+          s('rect', { x: r2(bx + 1), y: r2(top), width: r2(Math.max(1, bw - 2)), height: r2(hh), 'class': 'pg-fill-' + t }, g);
+          if (o.showValues !== false && n * series.length <= 24) txt(g, bx + bw / 2, (v >= 0 ? top - 5 : top + hh + 13), fmt(v, o.digits), 'pg-val');
+        });
+        txt(g, cx, y1 + 18, o.labels[i], 'pg-tick');
+      }
+      (o.refLines || []).forEach(function (r) {
+        s('line', { x1: x0, x2: x1, y1: r2(Y(r.y)), y2: r2(Y(r.y)), 'class': 'pg-ref' }, g);
+        if (r.label) txt(g, x1 - 4, Y(r.y) - 5, r.label, 'pg-reflabel', 'end');
+      });
+      if (series.length > 1) legend(g, series.map(function (sr, k) { return { name: sr.name, t: tone(sr.tone, CYCLE[k % 4]) }; }), x0 + 6, y0 + 4);
+      return f;
+    };
+
+    /* Line plot. o: {title, series:[{name, x, y, tone, dashed}], points:[{x,y,label,tone}], vlines:[{x,label}], hlines:[{y,label}], xLabel, yLabel, xmin, xmax, ymin, ymax, digits} */
+    V.line = function (o) {
+      need(o && Array.isArray(o.series) && o.series.length, 'V.line: series array required');
+      var xs = [], ys = [];
+      o.series.forEach(function (sr, k) {
+        numArr(sr.x, 'V.line series ' + k + ' x'); numArr(sr.y, 'V.line series ' + k + ' y');
+        need(sr.x.length === sr.y.length, 'V.line series ' + k + ': x and y lengths differ');
+        xs = xs.concat(sr.x); ys = ys.concat(sr.y);
+      });
+      (o.points || []).forEach(function (p, i) { need(isNum(p.x) && isNum(p.y), 'V.line: point ' + i + ' not finite'); xs.push(p.x); ys.push(p.y); });
+      (o.vlines || []).forEach(function (v) { need(isNum(v.x), 'V.line: vline x not finite'); xs.push(v.x); });
+      (o.hlines || []).forEach(function (v) { need(isNum(v.y), 'V.line: hline y not finite'); ys.push(v.y); });
+      // optional log axes: positions use log10; non-positive values are rejected so nothing is drawn wrongly
+      var lx = !!o.xLog, ly = !!o.yLog;
+      function lg(v, nm) { need(v > 0, 'V.line: ' + nm + ' must be > 0 on a log axis (got ' + v + ')'); return Math.log(v) / Math.LN10; }
+      if (lx) xs = xs.map(function (v) { return lg(v, 'x'); });
+      if (ly) ys = ys.map(function (v) { return lg(v, 'y'); });
+      var rx = range(xs, lx && isNum(o.xmin) ? lg(o.xmin, 'xmin') : o.xmin, lx && isNum(o.xmax) ? lg(o.xmax, 'xmax') : o.xmax, false),
+          ry = range(ys, ly && isNum(o.ymin) ? lg(o.ymin, 'ymin') : o.ymin, ly && isNum(o.ymax) ? lg(o.ymax, 'ymax') : o.ymax, false);
+      if (lx && !isNum(o.xmin) && !isNum(o.xmax)) rx = [Math.floor(rx[0] + 1e-9), Math.ceil(rx[1] - 1e-9)];
+      if (ly && !isNum(o.ymin) && !isNum(o.ymax)) ry = [Math.floor(ry[0] + 1e-9), Math.ceil(ry[1] - 1e-9)];
+      if (rx[1] <= rx[0]) rx[1] = rx[0] + 1;
+      if (ry[1] <= ry[0]) ry[1] = ry[0] + 1;
+      var W = 640, H = 300, ml = 58, mr = 16, mt = 18, mb = o.xLabel ? 58 : 40;
+      var f = panel(o.title), svg = svgBox(f, W, H, o.title), g = s('g', {}, svg);
+      var x0 = ml, x1 = W - mr, y0 = mt, y1 = H - mb;
+      var Xl = function (v) { return x0 + (v - rx[0]) / (rx[1] - rx[0]) * (x1 - x0); };
+      var Yl = function (v) { return y1 - (v - ry[0]) / (ry[1] - ry[0]) * (y1 - y0); };
+      var X = function (v) { return Xl(lx ? Math.log(v) / Math.LN10 : v); };
+      var Y = function (v) { return Yl(ly ? Math.log(v) / Math.LN10 : v); };
+      function logTicks(lo, hi) { var out = []; for (var e = Math.ceil(lo - 1e-9); e <= hi + 1e-9; e++) out.push(e); return out.length >= 2 ? out : ticks(lo, hi, 4); }
+      if (ly) {
+        logTicks(ry[0], ry[1]).forEach(function (e) { var yy = Yl(e); s('line', { x1: x0, x2: x1, y1: r2(yy), y2: r2(yy), 'class': 'pg-gridline' }, g); txt(g, x0 - 6, yy + 4, fmt(Math.pow(10, e)), 'pg-tick', 'end'); });
+        s('line', { x1: x0, x2: x0, y1: y0, y2: y1, 'class': 'pg-axis' }, g);
+        if (o.yLabel) txt(g, 14, (y0 + y1) / 2, o.yLabel, 'pg-axlabel', 'middle', { transform: 'rotate(-90 14 ' + r2((y0 + y1) / 2) + ')' });
+        if (o.xLabel) txt(g, (x0 + x1) / 2, y1 + 40, o.xLabel, 'pg-axlabel');
+      } else axes(g, x0, y0, x1, y1, ry[0], ry[1], o.yLabel, o.xLabel, o.digits);
+      (lx ? logTicks(rx[0], rx[1]) : ticks(rx[0], rx[1], 6)).forEach(function (t) {
+        var xx = Xl(t), anc = xx > x1 - 24 ? 'end' : (xx < x0 + 10 ? 'start' : 'middle');
+        txt(g, xx, y1 + 18, fmt(lx ? Math.pow(10, t) : t), 'pg-tick', anc);
+      });
+      s('line', { x1: x0, x2: x1, y1: y1, y2: y1, 'class': 'pg-axis' }, g);
+      var clipId = 'pgc' + Math.random().toString(36).slice(2, 8) + (++uid);
+      var cp = s('clipPath', { id: clipId }, s('defs', {}, svg));
+      s('rect', { x: x0, y: y0 - 2, width: x1 - x0, height: y1 - y0 + 4 }, cp);
+      var pg = s('g', { 'clip-path': 'url(#' + clipId + ')' }, g);
+      (o.hlines || []).forEach(function (v) { s('line', { x1: x0, x2: x1, y1: r2(Y(v.y)), y2: r2(Y(v.y)), 'class': 'pg-ref' }, pg); if (v.label) txt(g, x1 - 4, Y(v.y) - 5, v.label, 'pg-reflabel', 'end'); });
+      (o.vlines || []).forEach(function (v) { s('line', { x1: r2(X(v.x)), x2: r2(X(v.x)), y1: y0, y2: y1, 'class': 'pg-ref' }, pg); if (v.label) txt(g, X(v.x) + 4, y0 + 12, v.label, 'pg-reflabel', 'start'); });
+      o.series.forEach(function (sr, k) {
+        var d = '';
+        for (var i = 0; i < sr.x.length; i++) d += (i ? 'L' : 'M') + r2(X(sr.x[i])) + ' ' + r2(Y(sr.y[i]));
+        var t = tone(sr.tone, CYCLE[k % 4]);
+        if (d) s('path', { d: d, 'class': 'pg-stroke-' + t + (sr.dashed ? ' pg-dashed' : '') }, pg);
+      });
+      (o.points || []).forEach(function (p) {
+        s('circle', { cx: r2(X(p.x)), cy: r2(Y(p.y)), r: 5, 'class': 'pg-fill-' + tone(p.tone, 'alt') + ' pg-dot' }, g);
+        if (p.label) txt(g, X(p.x) + 8, Y(p.y) - 8, p.label, 'pg-val', 'start');
+      });
+      if (o.series.length > 1) legend(g, o.series.map(function (sr, k) { return { name: sr.name || ('series ' + (k + 1)), t: tone(sr.tone, CYCLE[k % 4]) }; }), x0 + 8, y0 + 4);
+      return f;
+    };
+
+    /* Heatmap of a matrix. o: {title, matrix, rowLabels, colLabels, min, max, digits, showValues, highlight:[[r,c],...]} */
+    V.heatmap = function (o) {
+      need(o && Array.isArray(o.matrix) && o.matrix.length, 'V.heatmap: matrix required');
+      var R = o.matrix.length, C = (o.matrix[0] || []).length, all = [];
+      o.matrix.forEach(function (row, i) { numArr(row, 'V.heatmap row ' + i); need(row.length === C, 'V.heatmap: ragged matrix'); all = all.concat(row); });
+      var rg = range(all, o.min, o.max, false), lo = rg[0], hi = rg[1], div = lo < 0 && hi > 0;
+      var m = Math.max(Math.abs(lo), Math.abs(hi));
+      var cell = Math.min(64, Math.floor(540 / Math.max(C, 1))), ml = 70, mt = 26;
+      var W = ml + C * cell + 10, H = mt + R * cell + 10;
+      var f = panel(o.title), svg = svgBox(f, W, H, o.title), g = s('g', {}, svg);
+      var hls = (o.highlight || []).map(function (p) { return p[0] + ',' + p[1]; });
+      for (var i = 0; i < R; i++) {
+        txt(g, ml - 8, mt + i * cell + cell / 2 + 4, o.rowLabels && o.rowLabels[i] !== undefined ? o.rowLabels[i] : 'row ' + (i + 1), 'pg-tick', 'end');
+        for (var j = 0; j < C; j++) {
+          var v = o.matrix[i][j], t, a;
+          if (div) { t = v < 0 ? 'ours' : 'accent'; a = Math.abs(v) / (m || 1); }
+          else { t = 'accent'; a = (v - lo) / ((hi - lo) || 1); }
+          a = Math.max(0.06, Math.min(1, a));
+          s('rect', { x: ml + j * cell + 1, y: mt + i * cell + 1, width: cell - 2, height: cell - 2, 'class': 'pg-fill-' + t, 'fill-opacity': r2(a) }, g);
+          if (hls.indexOf(i + ',' + j) >= 0) s('rect', { x: ml + j * cell + 1, y: mt + i * cell + 1, width: cell - 2, height: cell - 2, 'class': 'pg-hl' }, g);
+          if (o.showValues !== false && cell >= 30) txt(g, ml + j * cell + cell / 2, mt + i * cell + cell / 2 + 4, fmt(v, o.digits), a > 0.55 ? 'pg-val pg-val-inv' : 'pg-val');
+        }
+      }
+      for (var jj = 0; jj < C; jj++) txt(g, ml + jj * cell + cell / 2, mt - 8, o.colLabels && o.colLabels[jj] !== undefined ? o.colLabels[jj] : 'col ' + (jj + 1), 'pg-tick');
+      return f;
+    };
+
+    /* Free diagram in viewBox units. */
+    V.diagram = function (o) {
+      need(o && Array.isArray(o.items), 'V.diagram: items array required');
+      var W = o.width || 640, H = o.height || 300;
+      need(isNum(W) && isNum(H), 'V.diagram: width/height must be numbers');
+      var f = panel(o.title), svg = svgBox(f, W, H, o.title);
+      var mid = 'pga' + Math.random().toString(36).slice(2, 8) + (++uid), defs = s('defs', {}, svg);
+      ['accent', 'alt', 'warn', 'muted', 'ink', 'ours'].forEach(function (t) {
+        var mk = s('marker', { id: mid + t, viewBox: '0 0 10 10', refX: 9, refY: 5, markerWidth: 7, markerHeight: 7, orient: 'auto-start-reverse' }, defs);
+        s('path', { d: 'M0 0L10 5L0 10z', 'class': 'pg-fill-' + t }, mk);
+      });
+      var g = s('g', {}, svg);
+      o.items.forEach(function (it, k) {
+        need(it && typeof it === 'object', 'V.diagram item ' + k + ' must be an object');
+        var t = tone(it.tone, it.type === 'text' ? 'ink' : 'accent'), nm = 'V.diagram item ' + k + ' (' + it.type + ')';
+        if (it.type === 'rect') {
+          numArr([it.x, it.y, it.w, it.h], nm);
+          s('rect', { x: r2(it.x), y: r2(it.y), width: r2(Math.max(0, it.w)), height: r2(Math.max(0, it.h)), rx: 6, 'class': it.fill === false ? 'pg-box-' + t : 'pg-soft-' + t }, g);
+          if (it.label !== undefined) txt(g, it.x + it.w / 2, it.y + it.h / 2 + (it.sub !== undefined ? -2 : 5), it.label, 'pg-dlabel');
+          if (it.sub !== undefined) txt(g, it.x + it.w / 2, it.y + it.h / 2 + 15, it.sub, 'pg-dsub');
+        } else if (it.type === 'circle') {
+          numArr([it.cx, it.cy, it.r], nm);
+          s('circle', { cx: r2(it.cx), cy: r2(it.cy), r: r2(Math.max(0, it.r)), 'class': 'pg-soft-' + t }, g);
+          if (it.label !== undefined) txt(g, it.cx, it.cy + 5, it.label, 'pg-dlabel');
+        } else if (it.type === 'arrow' || it.type === 'line') {
+          numArr([it.x1, it.y1, it.x2, it.y2], nm);
+          var a = { x1: r2(it.x1), y1: r2(it.y1), x2: r2(it.x2), y2: r2(it.y2), 'class': 'pg-stroke-' + t + (it.dashed ? ' pg-dashed' : '') };
+          if (isNum(it.width)) a['stroke-width'] = r2(Math.max(0.5, Math.min(14, it.width)));
+          if (it.type === 'arrow') a['marker-end'] = 'url(#' + mid + t + ')';
+          s('line', a, g);
+          if (it.label !== undefined) txt(g, (it.x1 + it.x2) / 2, (it.y1 + it.y2) / 2 - 7, it.label, 'pg-val');
+        } else if (it.type === 'text') {
+          numArr([it.x, it.y], nm);
+          txt(g, it.x, it.y, it.text, 'pg-dtext pg-tone-' + t, it.anchor || 'middle', isNum(it.size) ? { 'font-size': it.size } : null);
+        } else if (it.type === 'path') {
+          need(typeof it.d === 'string' && !/NaN|Infinity|undefined/.test(it.d), nm + ': d must be a valid path string');
+          s('path', { d: it.d, 'class': it.fill ? 'pg-soft-' + t : 'pg-stroke-' + t }, g);
+        } else {
+          throw new Error(nm + ': unknown item type');
+        }
+      });
+      return f;
+    };
+
+    /* Step-by-step numeric table. o: {title, columns:[...], rows:[[...]], highlightRow, digits} */
+    V.table = function (o) {
+      need(o && Array.isArray(o.columns) && Array.isArray(o.rows), 'V.table: columns and rows required');
+      var f = panel(o.title), wrap = h('div', { 'class': 'pg-scroll' }, f), t = h('table', { 'class': 'pg-table' }, wrap);
+      var tr = h('tr', {}, h('thead', {}, t));
+      o.columns.forEach(function (c) { h('th', {}, tr).innerHTML = lite(c); });
+      var tb = h('tbody', {}, t);
+      o.rows.forEach(function (row, i) {
+        need(Array.isArray(row), 'V.table: row ' + i + ' must be an array');
+        var r = h('tr', i === o.highlightRow ? { 'class': 'pg-hlrow' } : {}, tb);
+        row.forEach(function (c) { var td = h('td', {}, r); if (typeof c === 'number') td.textContent = fmt(c, o.digits); else td.innerHTML = lite(c); });
+      });
+      return f;
+    };
+
+    /* One line of worked arithmetic or a short note. tone: accent|alt|warn|ours|ink */
+    V.note = function (html, t) {
+      var p = h('p', { 'class': 'pg-note pg-note-' + tone(t, 'ink') }, container);
+      p.innerHTML = lite(html);
+      return p;
+    };
+
+    V.fmt = fmt;
+    return V;
+  }
+
+  /* Fill {r.key}, {r.key[0][1]} or {r.key:3} placeholders with live values from compute(). Returns {text, bad}. */
+  function fill(text, r) {
+    var bad = [];
+    var out = String(text === undefined || text === null ? '' : text).replace(/\{r\.([A-Za-z_$][\w$]*(?:\.[A-Za-z_$][\w$]*|\[\d+\])*)(?::(\d))?\}/g, function (m, path, d) {
+      var v = r, parts = path.match(/[A-Za-z_$][\w$]*|\d+/g);
+      for (var i = 0; i < parts.length && v !== undefined && v !== null; i++) v = v[parts[i]];
+      if (typeof v === 'number' && isFinite(v)) return fmt(v, d === undefined ? undefined : +d);
+      if (typeof v === 'string' || typeof v === 'boolean') return String(v);
+      var flat = function (x) { return Array.isArray(x) ? '[' + x.map(flat).join(', ') + ']' : (typeof x === 'number' && isFinite(x) ? fmt(x, d === undefined ? undefined : +d) : null); };
+      if (Array.isArray(v) && v.length && v.length <= 12 && flat(v).indexOf('null') < 0) return flat(v);
+      bad.push(m); return m;
+    });
+    return { text: out, bad: bad };
+  }
+
+  return { fmt: fmt, lite: lite, makeV: makeV, ticks: ticks, fill: fill };
+})();
+
+</script>
+<script>
+function compute(p){
+  const Q = p.Q, K = p.K, V = p.V;
+  const nq = Q.length, dk = Q[0].length, nk = K.length, dv = V[0].length;
+  const note = [];
+  // raw scores
+  const scores = [];
+  for(let i=0;i<nq;i++){
+    const row=[];
+    for(let j=0;j<nk;j++){
+      let s=0;
+      for(let d=0;d<dk;d++) s += Q[i][d]*K[j][d];
+      row.push(s);
+    }
+    scores.push(row);
+  }
+  const denom = Math.sqrt(dk) || 1;
+  const scaled = scores.map(row=>row.map(s=> p.scale ? s/denom : s));
+  // softmax rows, numerically stable
+  const weights = scaled.map(row=>{
+    const m = Math.max(...row);
+    const ex = row.map(s=>Math.exp(s-m));
+    const sum = ex.reduce((a,b)=>a+b,0) || 1;
+    return ex.map(e=>e/sum);
+  });
+  const rowSums = weights.map(r=>r.reduce((a,b)=>a+b,0));
+  // output = weights · V
+  const output = weights.map(w=>{
+    const out=[];
+    for(let c=0;c<dv;c++){
+      let s=0;
+      for(let j=0;j<nk;j++) s += w[j]*V[j][c];
+      out.push(s);
+    }
+    return out;
+  });
+  if(!p.scale) note.push("Scaling off: scores are used raw.");
+  return {scores, scaled, weights, output, rowSums, dk, note: note.join(" ")};
+}
+function render(V,p,r){
+  const rowL = p.Q.map((_,i)=>"q"+(i+1));
+  const colL = p.K.map((_,j)=>"k"+(j+1));
+  V.heatmap({title:"Scores Q K^T"+(p.scale?" / sqrt(d_k)":" (unscaled)"),matrix:r.scaled,rowLabels:rowL,colLabels:colL,min:-3,max:3,digits:2});
+  V.heatmap({title:"Attention weights softmax(scores)",matrix:r.weights,rowLabels:rowL,colLabels:colL,min:0,max:1,digits:3});
+  V.bars({title:"Output rows (weighted sum of V)",labels:r.output.map((_,i)=>"out q"+(i+1)),series:[{name:"c1",values:r.output.map(o=>o[0])},{name:"c2",values:r.output.map(o=>o[1])}],yLabel:"value",digits:3});
+  V.note("Row sums: "+r.rowSums.map(x=>V.fmt(x,3)).join(", ")+" — each equals 1. Output row 1 = "+r.weights[0].map((w,j)=>V.fmt(w,3)+"·v"+(j+1)).join(" + ")+" = ["+r.output[0].map(x=>V.fmt(x,3)).join(", ")+"].");
+}
+const checks=[
+  {name:"weights rows sum to 1",inputs:{Q:[[1,0],[0,1]],K:[[1,0],[0,1]],V:[[1,0],[0,1]],scale:true},test:(r)=>r.rowSums.every(s=>Math.abs(s-1)<1e-9)},
+  {name:"equal scores give uniform weights",inputs:{Q:[[1,1],[0,1]],K:[[1,0],[0,1]],V:[[1,0],[0,1]],scale:true},test:(r)=>Math.abs(r.weights[0][0]-0.5)<1e-9},
+  {name:"output equals weighted sum of V",inputs:{Q:[[2,0],[0,1]],K:[[1,0],[0,1]],V:[[1,0],[0,1]],scale:true},test:(r)=>{const w=r.weights[0];const e=[w[0]*1+w[1]*0,w[0]*0+w[1]*1];return Math.abs(e[0]-r.output[0][0])<1e-9&&Math.abs(e[1]-r.output[0][1])<1e-9;}},
+  {name:"scaling divides scores by sqrt(d_k)",inputs:{Q:[[2,0],[0,1]],K:[[1,0],[0,1]],V:[[1,0],[0,1]],scale:true},test:(r)=>Math.abs(r.scaled[0][0]-2/Math.sqrt(2))<1e-9},
+  {name:"scaling off leaves scores raw",inputs:{Q:[[2,0],[0,1]],K:[[1,0],[0,1]],V:[[1,0],[0,1]],scale:false},test:(r)=>Math.abs(r.scaled[0][0]-2)<1e-9}
+];
+</script>
+<script>
+/* Paper-to-Playground app runtime. Generic; reads the spec embedded in the page and
+   the generated compute/render/checks functions. */
+(function () {
+  'use strict';
+  var SPEC = JSON.parse(document.getElementById('pg-spec').textContent);
+  var fmt = PG.fmt, lite = PG.lite;
+  var $ = function (id) { return document.getElementById(id); };
+  function h(tag, attrs, parent, html) {
+    var e = document.createElement(tag);
+    if (attrs) for (var k in attrs) if (attrs[k] !== undefined && attrs[k] !== null) e.setAttribute(k, String(attrs[k]));
+    if (html !== undefined) e.innerHTML = html;
+    if (parent) parent.appendChild(e);
+    return e;
+  }
+  function clone(v) { return v === undefined ? v : JSON.parse(JSON.stringify(v)); }
+  var CONTROLS = SPEC.controls || [];
+  function defaults() { var d = {}; CONTROLS.forEach(function (c) { d[c.id] = clone(c.value); }); return d; }
+  function merged(over) { var d = defaults(); if (over) for (var k in over) if (k in d) d[k] = clone(over[k]); return d; }
+  var state = defaults();
+  var hasCompute = function () { return typeof compute === 'function'; };
+
+  /* ---------- static text ---------- */
+  function paras(t) { if (!t) return ''; return String(t).split(/\n\s*\n/).map(function (p) { return '<p>' + lite(p) + '</p>'; }).join(''); }
+  function fillText() {
+    document.title = PG.lite(SPEC.title || 'Interactive explanation').replace(/<[^>]*>/g, '');
+    $('pg-title').innerHTML = lite(SPEC.title);
+    $('pg-tagline').innerHTML = lite(SPEC.tagline || '');
+    var src = SPEC.source || {}, sl = $('pg-source'), bits = [];
+    if (src.paper) bits.push('<cite>' + lite(src.paper) + '</cite>');
+    if (src.authors) bits.push(lite(src.authors));
+    if (src.section) bits.push(lite(src.section));
+    if (src.equation) bits.push(lite(src.equation));
+    sl.innerHTML = 'Source: ' + bits.join(', ');
+    if (src.url && /^https?:\/\//.test(src.url)) {
+      sl.appendChild(document.createTextNode(' ('));
+      h('a', { href: src.url, rel: 'noopener' }, sl, 'paper link');
+      sl.appendChild(document.createTextNode(')'));
+    }
+    $('pg-idea').innerHTML = paras(SPEC.idea);
+    $('pg-why').innerHTML = paras(SPEC.why);
+    if (SPEC.formula) $('pg-formula').innerHTML = lite(SPEC.formula); else $('pg-formula').style.display = 'none';
+    var tb = $('pg-symbols');
+    (SPEC.symbols || []).forEach(function (s) { var tr = h('tr', {}, tb); h('th', { scope: 'row' }, tr, lite(s.symbol)); h('td', {}, tr, lite(s.meaning)); });
+    if (!(SPEC.symbols || []).length) $('pg-symbols-wrap').style.display = 'none';
+    $('pg-figcap').innerHTML = lite(SPEC.figure_caption || '');
+    var ex = $('pg-explore');
+    (SPEC.explorations || []).forEach(function (e, i) {
+      var art = h('article', { 'class': 'pg-exp' }, ex);
+      h('h3', {}, art, 'Experiment ' + (i + 1) + ': ' + lite(e.title));
+      var dl = h('dl', {}, art);
+      var er = null;  // numbers quoted in the text are computed live at this experiment's preset
+      try { if (hasCompute()) er = compute(clone(merged(e.preset))); } catch (x) { er = null; }
+      var live = function (t) { return er ? PG.fill(t, er).text : t; };
+      h('dt', {}, dl, 'Change'); h('dd', {}, dl, lite(live(e.change)));
+      h('dt', {}, dl, 'Observe'); h('dd', {}, dl, lite(live(e.observe)));
+      h('dt', {}, dl, 'Why'); h('dd', {}, dl, lite(live(e.why)));
+      if (e.preset && typeof e.preset === 'object' && Object.keys(e.preset).length) {
+        var b = h('button', { type: 'button', 'class': 'pg-btn' }, art, 'Set up experiment ' + (i + 1));
+        b.addEventListener('click', function () { state = merged(e.preset); buildControls(); update(); flash(); });
+      }
+    });
+    var lim = SPEC.limitation || {};
+    $('pg-limit-kind').innerHTML = lite(lim.kind || 'Limitation');
+    $('pg-limit').innerHTML = paras(lim.text);
+    var gr = SPEC.grounding || {};
+    var fp = $('pg-from-paper');
+    (gr.from_paper || []).forEach(function (g) {
+      if (typeof g === 'string') { h('li', {}, fp, lite(g)); return; }
+      h('li', {}, fp, lite(g.claim) + (g.where ? ' <span class="pg-where">(' + lite(g.where) + ')</span>' : ''));
+    });
+    var ours = $('pg-ours');
+    (gr.ours || []).forEach(function (g) { h('li', {}, ours, lite(typeof g === 'string' ? g : g.claim)); });
+  }
+  function flash() {
+    var b = $('pg-bench'); b.classList.remove('pg-flash'); void b.offsetWidth; b.classList.add('pg-flash');
+    if (window.matchMedia && window.matchMedia('(max-width: 960px)').matches) b.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  /* ---------- controls ---------- */
+  function plainText(s) { return String(s || '').replace(/<[^>]*>/g, ''); }
+  function clamp(v, c) { if (typeof c.min === 'number') v = Math.max(c.min, v); if (typeof c.max === 'number') v = Math.min(c.max, v); return v; }
+  function numIn(val, c, onset, label) {
+    var i = h('input', { type: 'number', value: val, step: c.step || 'any', 'aria-label': label, inputmode: 'decimal' });
+    if (typeof c.min === 'number') i.min = c.min;
+    if (typeof c.max === 'number') i.max = c.max;
+    i.addEventListener('input', function () { var v = parseFloat(i.value); if (isFinite(v)) { onset(clamp(v, c)); update(); } });
+    i.addEventListener('change', function () { var v = parseFloat(i.value); i.value = isFinite(v) ? clamp(v, c) : val; });
+    return i;
+  }
+  function buildControls() {
+    var box = $('pg-controls'); box.innerHTML = '';
+    CONTROLS.forEach(function (c) {
+      var wrap = h('div', { 'class': 'pg-ctl pg-ctl-' + c.type }, box), id = 'ctl-' + c.id;
+      var lab = h('label', { 'for': id, 'class': 'pg-ctl-label' }, wrap, '<span>' + lite(c.label) + '</span>');
+      if (c.type === 'slider') {
+        var unit = c.unit ? ' ' + lite(c.unit) : '';
+        var out = h('output', { 'for': id, 'class': 'pg-ctl-val' }, lab, fmt(state[c.id]) + unit);
+        var r = h('input', { type: 'range', id: id, min: c.min, max: c.max, step: c.step || 'any', value: state[c.id] }, wrap);
+        r.addEventListener('input', function () { state[c.id] = parseFloat(r.value); out.innerHTML = fmt(state[c.id]) + unit; update(); });
+      } else if (c.type === 'number') {
+        var n = numIn(state[c.id], c, function (v) { state[c.id] = v; }, plainText(c.label)); n.id = id; wrap.appendChild(n);
+      } else if (c.type === 'toggle') {
+        wrap.classList.add('pg-ctl-row');
+        var cb = h('input', { type: 'checkbox', id: id }, null); cb.checked = !!state[c.id];
+        wrap.insertBefore(cb, lab);
+        cb.addEventListener('change', function () { state[c.id] = cb.checked; update(); });
+      } else if (c.type === 'select') {
+        var sel = h('select', { id: id }, wrap);
+        (c.options || []).forEach(function (o) {
+          var op = h('option', { value: JSON.stringify(o.value) }, sel, lite(o.label !== undefined ? o.label : String(o.value)));
+          if (JSON.stringify(o.value) === JSON.stringify(state[c.id])) op.selected = true;
+        });
+        sel.addEventListener('change', function () { state[c.id] = JSON.parse(sel.value); update(); });
+      } else if (c.type === 'vector' && Array.isArray(state[c.id])) {
+        vectorCtl(wrap, c, id);
+      } else if (c.type === 'matrix' && Array.isArray(state[c.id])) {
+        matrixCtl(wrap, c, id);
+      }
+      if (c.help) h('div', { 'class': 'pg-help' }, wrap, lite(c.help));
+    });
+  }
+  function vectorCtl(wrap, c, id) {
+    var row = h('div', { 'class': 'pg-vec', id: id, role: 'group' }, wrap), v = state[c.id];
+    v.forEach(function (x, i) {
+      var cell = h('div', { 'class': 'pg-vec-cell' }, row);
+      var lb = c.labels && c.labels[i] !== undefined ? c.labels[i] : String(i + 1);
+      h('span', { 'class': 'pg-vec-lab' }, cell, lite(lb));
+      cell.appendChild(numIn(x, c, function (val) { state[c.id][i] = val; }, plainText(c.label) + ' ' + plainText(lb)));
+    });
+    var rz = c.resizable;
+    if (rz) {
+      var bar = h('div', { 'class': 'pg-resize' }, wrap);
+      var minus = h('button', { type: 'button', 'class': 'pg-btn pg-btn-small' }, bar, 'Remove last entry');
+      var plus = h('button', { type: 'button', 'class': 'pg-btn pg-btn-small' }, bar, 'Add an entry');
+      minus.disabled = v.length <= (rz.min || 1);
+      plus.disabled = v.length >= (rz.max || 12);
+      minus.addEventListener('click', function () { if (state[c.id].length > (rz.min || 1)) { state[c.id].pop(); buildControls(); update(); } });
+      plus.addEventListener('click', function () { if (state[c.id].length < (rz.max || 12)) { state[c.id].push(typeof rz.fill === 'number' ? rz.fill : 0); buildControls(); update(); } });
+    }
+  }
+  function matrixCtl(wrap, c, id) {
+    var sc = h('div', { 'class': 'pg-scroll' }, wrap), t = h('table', { 'class': 'pg-mat', id: id }, sc), m = state[c.id];
+    if (c.colLabels) { var hr = h('tr', {}, h('thead', {}, t)); h('th', {}, hr, ''); c.colLabels.forEach(function (l) { h('th', { scope: 'col' }, hr, lite(l)); }); }
+    var tb = h('tbody', {}, t);
+    m.forEach(function (row, i) {
+      var tr = h('tr', {}, tb);
+      h('th', { scope: 'row' }, tr, lite(c.rowLabels && c.rowLabels[i] !== undefined ? c.rowLabels[i] : 'row ' + (i + 1)));
+      row.forEach(function (x, j) { var td = h('td', {}, tr); td.appendChild(numIn(x, c, function (val) { state[c.id][i][j] = val; }, plainText(c.label) + ' row ' + (i + 1) + ' column ' + (j + 1))); });
+    });
+  }
+
+  /* ---------- readouts ---------- */
+  function readouts(r) {
+    var box = $('pg-readouts'); box.innerHTML = '';
+    (SPEC.readouts || []).forEach(function (ro) {
+      var v = r ? r[ro.key] : undefined, d = h('div', { 'class': 'pg-ro' }, box);
+      h('div', { 'class': 'pg-ro-label' }, d, lite(ro.label));
+      var val = h('div', { 'class': 'pg-ro-val' }, d), digits = typeof ro.digits === 'number' ? ro.digits : undefined;
+      if (Array.isArray(v) && Array.isArray(v[0])) {
+        var t = h('table', { 'class': 'pg-mini' }, h('div', { 'class': 'pg-scroll' }, val));
+        v.forEach(function (row) { var tr = h('tr', {}, t); row.forEach(function (x) { h('td', {}, tr, lite(fmt(x, digits))); }); });
+        d.classList.add('pg-ro-wide');
+      } else if (Array.isArray(v)) {
+        val.innerHTML = '[ ' + v.map(function (x) { return lite(fmt(x, digits)); }).join(', ') + ' ]';
+        if (v.length > 4) d.classList.add('pg-ro-wide');
+      } else {
+        val.innerHTML = lite(fmt(v, digits)) + (ro.unit ? ' <span class="pg-unit">' + lite(ro.unit) + '</span>' : '');
+      }
+    });
+    if (r && typeof r.note === 'string' && r.note) { var n = h('div', { 'class': 'pg-ro pg-ro-wide pg-ro-note' }, box); n.innerHTML = lite(r.note); }
+  }
+
+  /* ---------- update loop ---------- */
+  function errBox(msg) { var p = h('p', { 'class': 'pg-error' }, $('pg-figure')); p.textContent = msg; }
+  function update() {
+    var f = $('pg-figure'); f.innerHTML = '';
+    if (!hasCompute()) { errBox('The interactive model is unavailable for this page.'); readouts(null); return; }
+    var r = null;
+    try { r = compute(clone(state)); }
+    catch (e) { errBox('The calculation could not run for these inputs: ' + e.message); readouts(null); return; }
+    readouts(r);
+    try { render(PG.makeV(f), clone(state), r); }
+    catch (e) { errBox('The figure could not be drawn for these inputs: ' + e.message); }
+  }
+
+  /* ---------- live checks ---------- */
+  function runChecks() {
+    var ul = $('pg-checks'), list = (typeof checks !== 'undefined' && Array.isArray(checks)) ? checks : [], pass = 0;
+    list.forEach(function (c) {
+      var ok = false, detail = '';
+      try {
+        var p = merged(c.inputs), r = compute(clone(p)), res = c.test(r, p);
+        if (res && typeof res === 'object') { ok = !!res.pass; detail = res.detail || ''; } else ok = !!res;
+      } catch (e) { ok = false; detail = e.message; }
+      if (ok) pass++;
+      h('li', { 'class': ok ? 'pg-ok' : 'pg-fail' }, ul, (ok ? 'Passed: ' : 'Failed: ') + lite(c.name) + (detail ? ' <span class="pg-where">' + lite(detail) + '</span>' : ''));
+    });
+    $('pg-checks-sum').textContent = list.length ? (pass + ' of ' + list.length + ' checks pass, computed in your browser when the page loaded.') : 'No automatic checks are available for this page.';
+  }
+
+  fillText();
+  buildControls();
+  $('pg-reset').addEventListener('click', function () { state = defaults(); buildControls(); update(); });
+  update();
+  runChecks();
+})();
+
+</script>
+</body>
+</html>

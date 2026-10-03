@@ -26,8 +26,8 @@ from playground.llm import LLM, BudgetExceeded
 from playground.prompts import REPAIR_SYSTEM, SYSTEM, repair_prompt, user_prompt
 from playground.source import fetch_excerpt, find_excerpt, trim_excerpt
 
-GEN_MAX_TOKENS = int(os.environ.get("P2P_GEN_MAX_TOKENS", "9000"))
-REPAIR_MAX_TOKENS = int(os.environ.get("P2P_REPAIR_MAX_TOKENS", "8000"))
+GEN_MAX_TOKENS = int(os.environ.get("P2P_GEN_MAX_TOKENS", "6000"))
+REPAIR_MAX_TOKENS = int(os.environ.get("P2P_REPAIR_MAX_TOKENS", "5000"))
 MAX_REPAIRS = int(os.environ.get("P2P_MAX_REPAIRS", "2"))
 DEFAULT_MODEL = os.environ.get("OPENROUTER_MODEL", "deepseek/deepseek-v4.1-flash")
 
