@@ -50,7 +50,8 @@
       var dl = h('dl', {}, art);
       var er = null;  // numbers quoted in the text are computed live at this experiment's preset
       try { if (hasCompute()) er = compute(clone(merged(e.preset))); } catch (x) { er = null; }
-      var live = function (t) { return er ? PG.fill(t, er).text : t; };
+      // a placeholder that cannot be filled shows a dash, never raw {r.key} text
+      var live = function (t) { return String(er ? PG.fill(t, er).text : t).replace(/\{r\.[^{}]*\}/g, '—'); };
       // predict first, then load the setup, then compare with what happens
       if (e.predict) { art.insertBefore(h('p', { 'class': 'pg-predict' }, null, '<b>Predict first:</b> ' + lite(e.predict)), dl); }
       if (e.preset && typeof e.preset === 'object' && Object.keys(e.preset).length) {

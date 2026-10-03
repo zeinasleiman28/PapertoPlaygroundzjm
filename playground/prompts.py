@@ -25,7 +25,7 @@ SPEC (text may use <sub><sup><b><i><code><br> and Unicode math):
 "grounding":{"from_paper":[{"claim","where"}] 2-4, only what the excerpt states, keeping its hedging ("the authors suspect"), "where" as numbered in the excerpt,"ours":[2-4 strings: all toy numbers, simplifications, anything not in the excerpt]}}
 
 CODE: plain JS, no DOM/network/randomness/imports. Define:
-function compute(p){...} // p = {control id: value}. Implement the excerpt's equation exactly; return every intermediate value shown. All numbers finite for every allowed input: handle zeros, equal values, empty sums, log 0 (0·log0=0), overflow (subtract max before exp). Never throw; if input is invalid, normalise/clip and set r.note (string).
+function compute(p){...} // p = {control id: value}. Implement the excerpt's equation exactly; return every intermediate value shown. All numbers finite for every allowed input: handle zeros, equal values, empty sums, log 0 (0·log0=0), overflow (subtract max before exp). Never throw; if input is invalid, normalise/clip and set r.note (string). A value that does not exist in a state (no solution, no critical point) is null (shown as —), never NaN.
 function render(V,p,r){...} // r = compute(p). 2-3 panels: first the mechanism's steps with live numbers (V.table of intermediate values or V.diagram, plus V.note), then the cause-and-effect chart(s), labelled axes:
  V.bars({title,labels,values|series:[{name,values}],highlight,yLabel,xLabel,min,max,digits,refLines:[{y,label}]})
  V.line({title,series:[{name,x,y,dashed}],points:[{x,y,label}],vlines:[{x,label}],hlines:[{y,label}],xLabel,yLabel,xmin,xmax,ymin,ymax,xLog,yLog}) // a sweep of one input with the current value marked is often clearest

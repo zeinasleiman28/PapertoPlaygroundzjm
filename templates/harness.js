@@ -115,7 +115,7 @@ function __run(spec) {
       if (cs.kind === 'default') rep.stats.worked_ok = !wf.bad.length;
       if (wf.bad.length) rep.stats.worked_bad_states = (rep.stats.worked_bad_states || 0) + 1;
     }
-    if (nf.length) rep.major.push('compute() returned NaN on ' + cs.label + ': ' + nf.join(', '));
+    if (nf.length) rep.major.push('compute() returned NaN on ' + cs.label + ': ' + nf.join(', ') + ' (if the value does not exist in this state, return null, shown as —; never NaN)');
     if (cs.kind === 'default') {
       rep.missing_readouts = [];
       (spec.readouts || []).forEach(function (ro) { if (!(ro.key in r)) { rep.missing_readouts.push(ro.key); rep.major.push('readout key "' + ro.key + '" is not returned by compute()'); } });
