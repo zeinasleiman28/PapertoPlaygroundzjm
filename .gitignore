@@ -227,3 +227,4 @@ node_modules/
 # project
 *.pyc
 .venv/
+CLAUDE.md
