@@ -20,7 +20,7 @@ SPEC (text may use <sub><sup><b><i><code><br> and Unicode math):
 "readouts":[{"key":compute() output key,"label","digits"?}] 3-6 intermediate and final values,
 "worked":the key equation with the current numbers plugged in, every value a placeholder, e.g. "y = {r.a:2} × {r.b:2} = {r.y:3}" (keys returned by compute()),
 "figure_caption":how to read the figure,
-"explorations":exactly 2 {"title","predict":a question asking the learner to predict the outcome before loading the setup,"preset":{control id:value} that creates exactly the situation in the title,"change","observe":what the learner will see; write every computed number as a placeholder {r.key}, {r.key[i]} or {r.key:2} (filled live from compute() at the preset), never typed by hand,"why":the cause},
+"explorations":exactly 2 {"title","predict":a question asking the learner to predict the outcome before loading the setup,"preset":{control id:value} that creates exactly the situation in the title,"change","observe":what the learner will see; write every computed number as a placeholder {r.key}, {r.key[i]} or {r.key:2} (filled live from compute() at the preset), never typed by hand; placeholders give values AT the preset only, so for "from X to Y" have compute() return both values (e.g. r.q_before, r.q) and make sure they differ,"why":the cause},
 "limitation":{"kind":"Limitation"|"Assumption"|"Common misunderstanding","text"},
 "grounding":{"from_paper":[{"claim","where"}] 2-4, only what the excerpt states, keeping its hedging ("the authors suspect"), "where" as numbered in the excerpt,"ours":[2-4 strings: all toy numbers, simplifications, anything not in the excerpt]}}
 
