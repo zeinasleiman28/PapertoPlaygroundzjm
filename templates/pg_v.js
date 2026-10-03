@@ -340,7 +340,8 @@ var PG = (function () {
     var out = String(text === undefined || text === null ? '' : text).replace(/\{r\.([A-Za-z_$][\w$]*(?:\.[A-Za-z_$][\w$]*|\[\d+\])*)(?::(\d))?\}/g, function (m, path, d) {
       var v = r, parts = path.match(/[A-Za-z_$][\w$]*|\d+/g);
       for (var i = 0; i < parts.length && v !== undefined && v !== null; i++) v = v[parts[i]];
-      if (typeof v === 'number' && isFinite(v)) return fmt(v, d === undefined ? undefined : +d);
+      // +/-Infinity can be a correct value (e.g. no damping) and prints as ∞, like everywhere else; NaN never is
+      if (typeof v === 'number' && !isNaN(v)) return isFinite(v) ? fmt(v, d === undefined ? undefined : +d) : fmt(v);
       if (typeof v === 'string' || typeof v === 'boolean') return String(v);
       var flat = function (x) { return Array.isArray(x) ? '[' + x.map(flat).join(', ') + ']' : (typeof x === 'number' && isFinite(x) ? fmt(x, d === undefined ? undefined : +d) : null); };
       if (Array.isArray(v) && v.length && v.length <= 12 && flat(v).indexOf('null') < 0) return flat(v);
