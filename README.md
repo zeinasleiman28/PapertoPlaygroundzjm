@@ -2,7 +2,7 @@
 
 An agent that turns a focused research-paper excerpt and a learning brief into one self-contained, interactive HTML page that explains a single mechanism to an engineering undergraduate.
 
-**Team members:** Zeina Sleiman, Jad DIa and Michel Samrani (EECE503P / EECE798S)
+**Team members:** Zeina Sleiman, Jad Dia and Michel Samrani (EECE503P / EECE798S)
 
 **MODEL_ID:** `deepseek/deepseek-v4.1-flash` (via OpenRouter). It is also the default when `--model` is omitted.
 
