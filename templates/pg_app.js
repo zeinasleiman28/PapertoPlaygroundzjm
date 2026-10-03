@@ -90,7 +90,26 @@
     i.addEventListener('change', function () { var v = parseFloat(i.value); i.value = isFinite(v) ? clamp(v, c) : val; });
     return i;
   }
+  // step-through for iterative processes: a slider marked "play" can be advanced one step at a time or animated
+  var playTimer = null;
+  function stopPlay() { if (playTimer) { clearInterval(playTimer); playTimer = null; } }
+  function playButtons(wrap, c, r, out, unit) {
+    var bar = h('div', { 'class': 'pg-resize' }, wrap), st = c.step || (c.max - c.min) / 20;
+    var play = h('button', { type: 'button', 'class': 'pg-btn pg-btn-small' }, bar, 'Play');
+    var step = h('button', { type: 'button', 'class': 'pg-btn pg-btn-small' }, bar, 'Step');
+    var reset = h('button', { type: 'button', 'class': 'pg-btn pg-btn-small' }, bar, 'Reset');
+    function set(v) { state[c.id] = Math.min(c.max, Math.max(c.min, +(+v).toPrecision(12))); r.value = state[c.id]; out.innerHTML = fmt(state[c.id]) + unit; update(); }
+    function advance() { if (state[c.id] + st > c.max + 1e-9) { stopPlay(); play.textContent = 'Play'; return; } set(state[c.id] + st); }
+    play.addEventListener('click', function () {
+      if (playTimer) { stopPlay(); play.textContent = 'Play'; return; }
+      if (state[c.id] + st > c.max + 1e-9) set(c.min);
+      play.textContent = 'Pause'; playTimer = setInterval(advance, 450);
+    });
+    step.addEventListener('click', function () { stopPlay(); play.textContent = 'Play'; advance(); });
+    reset.addEventListener('click', function () { stopPlay(); play.textContent = 'Play'; set(c.min); });
+  }
   function buildControls() {
+    stopPlay();
     var box = $('pg-controls'); box.innerHTML = '';
     CONTROLS.forEach(function (c) {
       var wrap = h('div', { 'class': 'pg-ctl pg-ctl-' + c.type }, box), id = 'ctl-' + c.id;
@@ -103,6 +122,7 @@
         if (!st || Math.abs(k - Math.round(k)) > 1e-6) st = 'any';
         var r = h('input', { type: 'range', id: id, min: c.min, max: c.max, step: st, value: state[c.id] }, wrap);
         r.addEventListener('input', function () { state[c.id] = parseFloat(r.value); out.innerHTML = fmt(state[c.id]) + unit; update(); });
+        if (c.play) playButtons(wrap, c, r, out, unit);
       } else if (c.type === 'number') {
         var n = numIn(state[c.id], c, function (v) { state[c.id] = v; }, plainText(c.label)); n.id = id; wrap.appendChild(n);
       } else if (c.type === 'toggle') {

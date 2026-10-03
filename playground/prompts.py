@@ -16,7 +16,7 @@ SPEC (text may use <sub><sup><b><i><code><br> and Unicode math):
 "idea":2-4 sentences for the audience,"why":1-2 sentences,
 "formula":the excerpt's key equation, same notation,
 "symbols":[{"symbol","meaning"}] every symbol in formula, controls and figure,
-"controls":2-4 of {"id","type":"slider","label","min","max","step","value"} | {"id","type":"toggle","label","value":bool} | {"id","type":"select","label","options":[{"value","label"}],"value"} | {"id","type":"vector","label","value":[nums],"min","max","step","resizable"?:{"min","max","fill"}} | {"id","type":"matrix","label","value":[[nums]],"rowLabels","colLabels","min","max","step"},
+"controls":2-4 of {"id","type":"slider","label","min","max","step","value","play"?:true for an iteration/time-step count, adds Play/Step/Reset} | {"id","type":"toggle","label","value":bool} | {"id","type":"select","label","options":[{"value","label"}],"value"} | {"id","type":"vector","label","value":[nums],"min","max","step","resizable"?:{"min","max","fill"}} | {"id","type":"matrix","label","value":[[nums]],"rowLabels","colLabels","min","max","step"},
 "readouts":[{"key":compute() output key,"label","digits"?}] 3-6 intermediate and final values,
 "worked":the key equation with the current numbers plugged in, every value a placeholder, e.g. "y = {r.a:2} × {r.b:2} = {r.y:3}" (keys returned by compute()),
 "figure_caption":how to read the figure,
