@@ -41,11 +41,33 @@ function __run(spec) {
 
   var cases = [{ label: 'default inputs', p: merged(null), kind: 'default' }];
   (spec.explorations || []).forEach(function (e, i) { cases.push({ label: 'experiment ' + (i + 1) + ' preset', p: merged(e.preset), kind: 'preset' }); });
+  // a learner drags a slider through its whole range: min, max and 7 evenly spaced values on the step grid
+  function sweep(c) {
+    if (typeof c.min !== 'number' || typeof c.max !== 'number' || !(c.max >= c.min)) return [];
+    var out = [c.min, c.max], seen = {}; seen[c.min] = seen[c.max] = 1;
+    for (var q = 1; q < 8 && c.max > c.min; q++) {
+      var v = c.min + q * (c.max - c.min) / 8;
+      if (c.step > 0) v = Math.min(c.max, Math.max(c.min, c.min + Math.round((v - c.min) / c.step) * c.step));
+      v = +v.toPrecision(12);
+      if (!seen[v]) { seen[v] = 1; out.push(v); }
+    }
+    return out;
+  }
+  // experiments tell the learner to change things from the loaded setup: sweep every slider and flip every toggle there too
+  (spec.explorations || []).forEach(function (e, i) {
+    if (!e || !e.preset || typeof e.preset !== 'object') return;
+    C.forEach(function (c) {
+      var vals = c.type === 'slider' || c.type === 'number' ? sweep(c) : c.type === 'toggle' ? [!merged(e.preset)[c.id]] : [];
+      vals.forEach(function (v) {
+        var p = merged(e.preset); p[c.id] = v;
+        cases.push({ label: 'experiment ' + (i + 1) + ' setup with control "' + c.id + '" = ' + v, p: p, kind: 'edge' });
+      });
+    });
+  });
   C.forEach(function (c) {
     function add(v, what) { var o = {}; o[c.id] = v; cases.push({ label: 'control "' + c.id + '" ' + what, p: merged(o), kind: 'edge' }); }
     if (c.type === 'slider' || c.type === 'number') {
-      if (typeof c.min === 'number') add(c.min, 'at min ' + c.min);
-      if (typeof c.max === 'number') add(c.max, 'at max ' + c.max);
+      sweep(c).forEach(function (v, k) { add(v, (k === 0 ? 'at min ' : k === 1 ? 'at max ' : 'at ') + v); });
     } else if (c.type === 'toggle') add(!c.value, 'flipped');
     else if (c.type === 'select') (c.options || []).forEach(function (o) { add(o.value, '= ' + JSON.stringify(o.value)); });
     else if (c.type === 'vector' && Array.isArray(c.value)) {
