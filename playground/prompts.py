@@ -14,7 +14,7 @@ SPEC (text may use <sub><sup><b><i><code><br> and Unicode math):
 "title","tagline":one sentence,
 "source":{"paper","authors","url","section","equation"} section/equation written exactly as in the excerpt or focus,
 "idea":2-4 sentences for the audience,"why":1-2 sentences,
-"formula":the excerpt's key equation, same notation,
+"formula":the excerpt's key equation, same notation, in Unicode/<sub><sup> (no LaTeX),
 "symbols":[{"symbol","meaning"}] every symbol in formula, controls and figure,
 "controls":2-4 of {"id","type":"slider","label","min","max","step","value","play"?:true for an iteration/time-step count, adds Play/Step/Reset} | {"id","type":"toggle","label","value":bool} | {"id","type":"select","label","options":[{"value","label"}],"value"} | {"id","type":"vector","label","value":[nums],"min","max","step","resizable"?:{"min","max","fill"}} | {"id","type":"matrix","label","value":[[nums]],"rowLabels","colLabels","min","max","step"},
 "readouts":[{"key":compute() output key,"label","digits"?}] 3-6 intermediate and final values,

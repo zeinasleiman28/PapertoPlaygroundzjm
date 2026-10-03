@@ -46,6 +46,36 @@ def load_spec(spec_text: str):
             err = err or e
     return None, f"SPEC is not valid JSON: {err}"
 
+_GREEK = {n: chr(c) for n, c in zip(
+    "alpha beta gamma delta epsilon zeta eta theta iota kappa lambda mu nu xi omicron pi rho varsigma sigma tau upsilon phi chi psi omega".split(),
+    range(0x3B1, 0x3CA))}
+_GREEK.update({n.capitalize(): chr(ord(c) - 32) for n, c in _GREEK.items() if n not in ("varsigma",)})
+_TEX_SYM = {"cdot": "·", "times": "×", "sum": "Σ", "prod": "Π", "infty": "∞", "leq": "≤", "le": "≤", "geq": "≥", "ge": "≥",
+            "neq": "≠", "ne": "≠", "approx": "≈", "propto": "∝", "to": "→", "rightarrow": "→", "partial": "∂", "nabla": "∇",
+            "pm": "±", "in": "∈", "sqrt": "√", "|": "‖", "varepsilon": "ε", "varphi": "φ", "ell": "ℓ", "int": "∫", "mid": "|"}
+
+
+def delatex(s: str) -> str:
+    """Turn common inline LaTeX into the page's Unicode + <sub>/<sup> text. Text without LaTeX is returned as is."""
+    if not isinstance(s, str) or "{r." in s or not re.search(r"\\[A-Za-z|]|[\^_]\{", s):
+        return s
+    t = re.sub(r"\$+", "", s)
+    t = re.sub(r"\\(?:begin|end)\{[^}]*\}|\\(?:left|right|displaystyle|quad|qquad|nonumber)\b|\\[,;:! ]", " ", t)
+    t = re.sub(r"\\tag\{([^}]*)\}", r"(\1)", t)
+    t = re.sub(r"\\(?:mathrm|mathbf|mathit|text|operatorname|boldsymbol|mathcal|mathbb)\{([^{}]*)\}", r"\1", t)
+    for _ in range(3):  # innermost first; nested fractions need a few passes
+        t = re.sub(r"\\[dt]?frac\{([^{}]*)\}\{([^{}]*)\}", r"(\1)/(\2)", t)
+        t = re.sub(r"\\sqrt\{([^{}]*)\}", r"√(\1)", t)
+    t = re.sub(r"\\([A-Za-z]+|\|)", lambda m: _GREEK.get(m.group(1), _TEX_SYM.get(m.group(1), m.group(1))), t)
+    t = re.sub(r"\^\{([^{}]*)\}|\^(\S)", lambda m: "<sup>" + (m.group(1) if m.group(1) is not None else m.group(2)) + "</sup>", t)
+    t = re.sub(r"_\{([^{}]*)\}|_([A-Za-z0-9])", lambda m: "<sub>" + (m.group(1) if m.group(1) is not None else m.group(2)) + "</sub>", t)
+    # (a)/(b) -> a/b for simple parts; right after a function name (log, exp, ...) keep one pair: log(a/b)
+    t = re.sub(r"(\b[A-Za-z]{2,} ?)?\(([A-Za-z0-9.αβγδεθλμνπρστφχψωΣ<>/]+)\)/\(([A-Za-z0-9.αβγδεθλμνπρστφχψωΣ<>/]+)\)",
+               lambda m: (m.group(1).rstrip() + "(" + m.group(2) + "/" + m.group(3) + ")") if m.group(1)
+               else m.group(2) + "/" + m.group(3), t)
+    return re.sub(r"\s+", " ", t.replace("{", "").replace("}", "")).strip()
+
+
 def autofix(spec: dict, case: dict = None):
     """Deterministic repairs that need no model call. Mutates spec; returns a list of what was fixed."""
     fixed = []
@@ -146,6 +176,36 @@ def autofix(spec: dict, case: dict = None):
         for k in ("from_paper", "ours"):  # the page iterates these: a single string must become a list
             if isinstance(gr.get(k), (str, dict)):
                 gr[k] = [gr[k]]; fixed.append(f"grounding.{k} -> list")
+    # raw LaTeX is not rendered by the page: convert it to Unicode with <sub>/<sup>
+    n_tex = [0]
+
+    def tex(obj, key):
+        if isinstance(obj, dict) and isinstance(obj.get(key), str):
+            new = delatex(obj[key])
+            if new != obj[key]:
+                obj[key] = new; n_tex[0] += 1
+    for k in ("title", "tagline", "idea", "why", "formula", "figure_caption"):
+        tex(spec, k)
+    for k in ("paper", "section", "equation"):
+        tex(spec.get("source"), k)
+    for s in spec.get("symbols") or []:
+        tex(s, "symbol"); tex(s, "meaning")
+    for lst, key in ((spec.get("controls"), "label"), (spec.get("readouts"), "label")):
+        for c in lst if isinstance(lst, list) else []:
+            tex(c, key)
+    for e in spec.get("explorations") if isinstance(spec.get("explorations"), list) else []:
+        for k in ("title", "predict", "change", "observe", "why"):
+            tex(e, k)
+    tex(spec.get("limitation"), "text")
+    for k in ("from_paper", "ours"):
+        lst = (spec.get("grounding") or {}).get(k) if isinstance(spec.get("grounding"), dict) else None
+        for i, g in enumerate(lst if isinstance(lst, list) else []):
+            if isinstance(g, str):
+                lst[i] = delatex(g); n_tex[0] += lst[i] != g
+            else:
+                tex(g, "claim"); tex(g, "where")
+    if n_tex[0]:
+        fixed.append(f"converted LaTeX to readable text in {n_tex[0]} fields")
     return fixed
 
 
