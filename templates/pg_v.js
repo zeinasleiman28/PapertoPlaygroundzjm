@@ -164,7 +164,9 @@ var PG = (function () {
         need(sr.x.length === sr.y.length, 'V.line series ' + k + ': x and y lengths differ');
         xs = xs.concat(sr.x); ys = ys.concat(sr.y.filter(function (v) { return v !== null; }));
       });
-      (o.points || []).forEach(function (p, i) { need(isNum(p.x) && isNum(p.y), 'V.line: point ' + i + ' not finite'); xs.push(p.x); ys.push(p.y); });
+      // a marker whose value is null ("does not exist here") is simply not drawn
+      o.points = (o.points || []).filter(function (p) { return !(p && (p.x === null || p.y === null)); });
+      o.points.forEach(function (p, i) { need(isNum(p.x) && isNum(p.y), 'V.line: point ' + i + ' not finite'); xs.push(p.x); ys.push(p.y); });
       (o.vlines || []).forEach(function (v) { need(isNum(v.x), 'V.line: vline x not finite'); xs.push(v.x); });
       (o.hlines || []).forEach(function (v) { need(isNum(v.y), 'V.line: hline y not finite'); ys.push(v.y); });
       // optional log axes: positions use log10; non-positive values are rejected so nothing is drawn wrongly

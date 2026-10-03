@@ -10,7 +10,7 @@ function compute(p){...}
 <<<END>>>
 
 SPEC (text may use <sub><sup><b><i><code><br> and Unicode math):
-{"brief":[...] FIRST: one item per requirement in the focus (each thing to explain, let the learner change or switch, show, guide through, check, handle), each mapped to its "control" id, "output" key, "exploration" (1|2) or "check" name, e.g. {"req":"show y","output":"y"},
+{"brief":[...] FIRST: one item per requirement in the focus (each thing to explain, let the learner change or switch, show, guide through, check, handle), mapped to what implements it, e.g. [{"req":"let the learner change x","control":"x"},{"req":"show y","output":"y"},{"req":"guide through case A","exploration":1},{"req":"check that P","check":"P holds"}],
 "title","tagline":one sentence,
 "source":{"paper","authors","url","section","equation"} section/equation written exactly as in the excerpt or focus,
 "idea":2-4 sentences for the audience,"why":1-2 sentences,
@@ -20,21 +20,21 @@ SPEC (text may use <sub><sup><b><i><code><br> and Unicode math):
 "readouts":[{"key":compute() output key,"label","digits"?}] 3-6 intermediate and final values,
 "worked":the key equation with the current numbers plugged in, every value a placeholder, e.g. "y = {r.a:2} × {r.b:2} = {r.y:3}" (keys returned by compute()),
 "figure_caption":how to read the figure,
-"explorations":exactly 2 {"title","predict":a question asking the learner to predict the outcome before loading the setup,"preset":{control id:value} that creates exactly the situation in the title,"change","observe":what the learner will see, every computed number as a placeholder {r.key}, {r.key[i]} or {r.key:2}, filled from compute() AT the preset (for "from X to Y" return both from compute(), e.g. r.q_before and r.q),"why":the cause},
+"explorations":exactly 2 {"title","predict":a question asking the learner to predict the outcome before loading the setup,"preset":{control id:value} that creates exactly the situation in the title,"change","observe":what the learner will see; write every computed number as a placeholder {r.key}, {r.key[i]} or {r.key:2} (filled live from compute() at the preset), never typed by hand; placeholders give values AT the preset only, so for "from X to Y" have compute() return both values (e.g. r.q_before, r.q) and make sure they differ,"why":the cause},
 "limitation":{"kind":"Limitation"|"Assumption"|"Common misunderstanding","text"},
 "grounding":{"from_paper":[{"claim","where"}] 2-4, only what the excerpt states, keeping its hedging ("the authors suspect"), "where" as numbered in the excerpt,"ours":[2-4 strings: all toy numbers, simplifications, anything not in the excerpt]}}
 
 CODE: plain JS, no DOM/network/randomness/imports. Define:
 function compute(p){...} // p = {control id: value}. Implement the excerpt's equation exactly; return every intermediate value shown. All numbers finite for every allowed input: handle zeros, equal values, empty sums, log 0 (0·log0=0), overflow (subtract max before exp). Never throw; if input is invalid, normalise/clip and set r.note (string). A value that does not exist in a state (no solution, no critical point) is null (shown as —), never NaN.
-function render(V,p,r){...} // r = compute(p). 2-3 panels: first the mechanism's steps with live numbers (V.table of intermediate values or V.diagram), then the cause-and-effect chart(s), labelled axes:
+function render(V,p,r){...} // r = compute(p). 2-3 panels: first the mechanism's steps with live numbers (V.table of intermediate values or V.diagram, plus V.note), then the cause-and-effect chart(s), labelled axes:
  V.bars({title,labels,values|series:[{name,values}],highlight,yLabel,xLabel,min,max,digits,refLines:[{y,label}]})
  V.line({title,series:[{name,x,y,dashed}],points:[{x,y,label}],vlines:[{x,label}],hlines:[{y,label}],xLabel,yLabel,xmin,xmax,ymin,ymax,xLog,yLog}) // a sweep of one input with the current value marked is often clearest
  V.heatmap({title,matrix,rowLabels,colLabels,min,max,digits})
  V.diagram({title,width,height,items:[{type:"rect",x,y,w,h,label,sub}|{type:"circle",cx,cy,r,label}|{type:"arrow"|"line",x1,y1,x2,y2,label,width}|{type:"text",x,y,text}]})
- V.table({title,columns,rows,digits}); V.note(html); V.fmt(x,d)
-const checks=[{name,inputs:{control id:value},test:(r,p)=>bool}]; // 3 checks of exact facts: a value hand-computed at simple inputs (0, 1, equal values) or a sum/symmetry/limit/ordering property; inputs set every control used and create the named situation; relative tolerance 1e-6 (5% for "≈"); no guessed thresholds ("x is low")
+ V.table({title,columns,rows,digits}); V.note(html) // one line of worked arithmetic with live numbers; V.fmt(x,d)
+const checks=[{name,inputs:{control id:value},test:(r,p)=>bool}]; // 3-5 checks of exact facts: a value hand-computed from the formula at simple inputs (0, 1, equal values), or a sum/symmetry/limit/ordering property. inputs set every control the check uses and really create the situation in its name. Compare with a relative tolerance (1e-6 for exact values, 5% for an approximation "≈"); never a vague guessed threshold ("x is low"): compute the expected number
 
-Rules: stay on the focus and audience; define terms before use; never invent results; every number shown comes from compute(); defaults are a typical non-special state so each control visibly changes the figure; presets use real control ids with values of the right shape. Be concise."""
+Rules: stay on the requested focus and audience; define terms before use; match the excerpt's notation; never invent results; every number shown comes from compute(); defaults are a typical non-special state so each control visibly changes the figure from them; guard every division (0/0 must not show NaN/undefined); presets use real control ids with values of the right shape. Be concise."""
 
 SYSTEM = CONTRACT
 
