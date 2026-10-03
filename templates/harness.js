@@ -174,7 +174,7 @@ function __run(spec) {
   var brief = Array.isArray(spec.brief) ? spec.brief : [], r0 = null;
   try { r0 = compute(merged(null)); } catch (e) {}
   var cnames = (list || []).map(function (c) { return String(c.name || '').toLowerCase(); }), ids = C.map(function (c) { return c.id; });
-  var nexp = (spec.explorations || []).length, covered = 0, missing = [];
+  var nexp = (spec.explorations || []).length, covered = 0, missing = [], hardMissing = [], softMissing = [];
   // lenient matching: the model often lists several ids or paraphrases a check name; only items that point at
   // nothing real count as uncovered
   var STOP = { the: 1, and: 1, that: 1, with: 1, for: 1, when: 1, gives: 1, give: 1, equals: 1, equal: 1, check: 1, show: 1, from: 1, into: 1, are: 1, is: 1, of: 1, to: 1, at: 1, in: 1, on: 1, a: 1, an: 1 };
@@ -184,21 +184,33 @@ function __run(spec) {
   ['figure', 'chart', 'plot', 'panel', 'panels', 'readout', 'readouts', 'table', 'note', 'diagram', 'render', 'visual', 'curve', 'bars', 'heatmap'].forEach(function (k) { keys[k] = 1; });
   var idset = {}; ids.forEach(function (i) { idset[String(i).toLowerCase()] = 1; });
   var ctoks = cnames.map(toks);
+  ['controls', 'control', 'sliders', 'slider', 'inputs', 'input', 'all'].forEach(function (k) { if (ids.length) idset[k] = 1; });
   brief.forEach(function (b) {
     if (!b || typeof b !== 'object') return;
     var ok = [], bad = [];
+    // "explain X" is delivered by the idea/formula text, which the spec schema check already requires
+    if (/^\s*(explain|describe|introduce|define)\b/i.test(String(b.req || '')) && spec.idea && spec.formula) ok.push('page text');
     if (b.control !== undefined && b.control !== null && b.control !== '') (toks(b.control, 1).some(function (t) { return idset[t]; }) ? ok : bad).push('control ' + b.control);
     if (b.output) (toks(String(b.output).replace(/\br\./g, ''), 1).some(function (t) { return keys[t] || Object.keys(keys).some(function (k) { return k.length >= 4 && t.indexOf(k) >= 0; }); }) ? ok : bad).push('output ' + b.output);
-    if (b.exploration !== undefined && b.exploration !== null && b.exploration !== '') { var k = parseInt(b.exploration, 10); (k >= 1 && k <= nexp ? ok : bad).push('exploration ' + b.exploration); }
+    if (b.exploration !== undefined && b.exploration !== null && b.exploration !== '') {
+      // by number (1, "2", "exploration 1") or by words of its title
+      var k = parseInt(String(b.exploration).replace(/^\D*/, ''), 10), et = toks(b.exploration);
+      var byTitle = (spec.explorations || []).some(function (e) { var tt = toks(e && e.title); return et.length && et.filter(function (t) { return tt.indexOf(t) >= 0; }).length >= Math.min(2, et.length); });
+      ((k >= 1 && k <= nexp) || byTitle ? ok : bad).push('exploration ' + b.exploration);
+    }
     if (b.check) {
       var bt = toks(b.check + ' ' + (b.req || ''));
       (ctoks.some(function (ct) { return ct.some(function (t) { return t.length >= 3 && bt.indexOf(t) >= 0; }); }) ? ok : bad).push('check "' + b.check + '"');
     }
-    if (ok.length) covered++;
-    else missing.push('"' + (b.req || '?') + '"' + (bad.length ? ' (mapped to ' + bad.join(', ') + ', which does not exist)' : ' (not mapped to any control, output, exploration or check)'));
+    if (ok.length) { covered++; return; }
+    var msg = '"' + (b.req || '?') + '"' + (bad.length ? ' (mapped to ' + bad.join(', ') + ', which does not exist)' : ' (not mapped to any control, output, exploration or check)');
+    missing.push(msg);
+    // a missing control or experiment is a real gap; an output/check name that does not match is often just wording
+    if (!bad.length || bad.some(function (x) { return /^(control|exploration) /.test(x); })) hardMissing.push(msg); else softMissing.push(msg);
   });
   rep.stats.brief = { items: brief.length, covered: covered, missing: missing };
   if (!brief.length) rep.major.push('SPEC "brief" is missing: list every requirement of the focus and map each to a control, output, exploration or check');
-  missing.forEach(function (m) { rep.major.push('brief requirement ' + m + ' is not covered'); });
+  hardMissing.forEach(function (m) { rep.major.push('brief requirement ' + m + ' is not covered'); });
+  softMissing.forEach(function (m) { rep.minor.push('brief requirement ' + m + ' could not be matched by name'); });
   return JSON.stringify(rep);
 }
