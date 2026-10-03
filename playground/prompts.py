@@ -61,14 +61,18 @@ REPAIR_SYSTEM = ("You fix a generated teaching page made of SPEC (JSON) and CODE
 def repair_prompt(spec: dict, code_text: str, problems: list, focus: str, blocks: set) -> str:
     probs = "\n".join(f"- {p}" for p in problems[:10])
     s = f"Focus: {focus[:400]}\nFailed checks:\n{probs}\n"
-    if "SPEC" in blocks:
+    if "SPEC" in blocks and blocks != {"CHECKS"}:
         s += "\nSPEC:\n" + json.dumps(spec, ensure_ascii=False, separators=(",", ":")) + "\n"
     else:
         ctl = [{k: c.get(k) for k in ("id", "type", "value", "min", "max", "options") if k in c}
                for c in spec.get("controls", []) if isinstance(c, dict)]
         s += "\nControls (SPEC unchanged): " + json.dumps(ctl, separators=(",", ":"))
         s += "\nReadout keys: " + json.dumps([r.get("key") for r in spec.get("readouts", []) if isinstance(r, dict)]) + "\n"
-    if "CODE" in blocks:
+    if "CODE" in blocks or "CHECKS" in blocks:
         s += "\nCODE:\n" + code_text + "\n"
+    if blocks == {"CHECKS"}:
+        return s + ("\nOnly your known-answer checks fail. Recompute each expected value by hand from the formula and "
+                    "the check's inputs. If compute() is right, reply with only <<<CHECKS>>>const checks=[...];<<<END>>> "
+                    "(the full corrected array). If compute() is wrong, reply with the full corrected <<<CODE>>> block.")
     want = " and ".join(sorted(blocks))
     return s + f"\nReturn the corrected {want} (full block{'s' if len(blocks) > 1 else ''}); the other block: UNCHANGED."

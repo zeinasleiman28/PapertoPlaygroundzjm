@@ -321,6 +321,40 @@ def blocks_to_fix(problems):
             need.add("CODE")
     return need or {"SPEC", "CODE"}
 
+def splice_checks(code: str, new_checks: str):
+    """Replace the `checks` declaration in code with new_checks (a full `const checks = [...]` statement).
+    Returns the new code, or None if the declaration cannot be located safely."""
+    m = re.search(r"(?:const|let|var)\s+checks\s*=\s*\[", code or "")
+    n = re.search(r"(?:const|let|var)\s+checks\s*=\s*\[", new_checks or "")
+    if not m or not n:
+        return None
+    i, depth, quote = m.end() - 1, 0, None
+    while i < len(code):
+        ch = code[i]
+        if quote:
+            if ch == "\\":
+                i += 1
+            elif ch == quote:
+                quote = None
+        elif ch in "'\"`":
+            quote = ch
+        elif ch in "([{":
+            depth += 1
+        elif ch in ")]}":
+            depth -= 1
+            if depth == 0:
+                end = i + 1
+                if code[end:end + 1] == ";":
+                    end += 1
+                return code[:m.start()] + new_checks.strip() + code[end:]
+        i += 1
+    return None
+
+
+def only_self_checks(problems) -> bool:
+    return bool(problems) and all(re.match(r'check ".*?" fails', p) for p in problems)
+
+
 def unusable(res) -> bool:
     """True if the page would have no working interactive model."""
     if res.get("spec") is None:

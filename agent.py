@@ -129,7 +129,7 @@ def main() -> int:
 
         # ---- repair loop ----
         attempt = 0
-        regen = False
+        regen = checks_repaired = False
         # normal repairs; one extra fresh attempt is allowed only while the page would be unusable
         while (best[3]["critical"] or best[3]["major"]) and (attempt < MAX_REPAIRS or
                                                                (CK.unusable(best[3]) and attempt < MAX_REPAIRS + 1)):
@@ -143,15 +143,25 @@ def main() -> int:
                                "\nYour previous reply was cut off or malformed. Keep text and code compact and follow the block format exactly.",
                                GEN_MAX_TOKENS, "revise")
                 s_txt = c_txt = None
+            elif CK.only_self_checks(problems) and checks_repaired:
+                # one cheap repair already tried; the remaining disagreement is handled at assembly
+                trace.event("revise", "stop_repairs", "self_checks_only", attempt=attempt)
+                break
             else:
-                want = CK.blocks_to_fix(problems)
+                want = {"CHECKS"} if CK.only_self_checks(problems) else CK.blocks_to_fix(problems)
+                checks_repaired = checks_repaired or want == {"CHECKS"}
                 trace.event("revise", "request_repair", "started", attempt=attempt, n_problems=len(problems),
                             blocks=sorted(want))
                 raw = llm.chat(REPAIR_SYSTEM, repair_prompt(r["spec"], c_txt, problems, focus, want),
                                REPAIR_MAX_TOKENS, "revise")
                 s_txt = r["spec"]  # carry deterministic fixes forward
             ns, nc = CK.parse_blocks(raw)
-            if ns is None and nc is None and raw.strip():  # model returned a bare block without markers
+            mc = re.search(r"<<<CHECKS>>>\s*(.*?)\s*(?:<<<END>>>|$)", raw, re.S)
+            if mc and nc is None and c_txt:  # checks-only reply: splice it into the current code
+                spliced = CK.splice_checks(c_txt, re.sub(r"^```\w*\s*|\s*```$", "", mc.group(1).strip()))
+                trace.event("revise", "splice_checks", "ok" if spliced else "failed")
+                nc = spliced
+            if ns is None and nc is None and raw.strip() and not mc:  # model returned a bare block without markers
                 ns, nc = (raw, None) if raw.lstrip().startswith("{") else (None, raw)
             ns = s_txt if (ns is None or ns.strip().upper() == "UNCHANGED") else ns
             nc = c_txt if (nc is None or nc.strip().upper() == "UNCHANGED") else nc
