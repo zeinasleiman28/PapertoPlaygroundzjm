@@ -83,6 +83,17 @@ function __run(spec) {
     cases.push({ label: 'random inputs #' + (k + 1) + ' ' + JSON.stringify(rp).slice(0, 120), p: rp, kind: 'edge' });
   }
 
+  // numbers in exploration text must come from compute() through {r.key} placeholders that resolve at the preset
+  rep.stats.live_numbers = 0;
+  (spec.explorations || []).forEach(function (e, i) {
+    var r; try { r = compute(merged(e.preset)); } catch (x) { return; }
+    ['change', 'observe', 'why'].forEach(function (k) {
+      var f = PG.fill(e[k], r);
+      rep.stats.live_numbers += ((String(e[k] || '').match(/\{r\./g)) || []).length - f.bad.length;
+      if (f.bad.length) rep.major.push('exploration ' + (i + 1) + ' ' + k + ': placeholder ' + f.bad.join(', ') + ' does not resolve to a value in compute() output at its preset; available keys: ' + Object.keys(r).join(', '));
+    });
+  });
+
   var defaultPanels = 0;
   cases.forEach(function (cs) {
     var bucket = cs.kind === 'edge' ? rep.major : rep.critical;

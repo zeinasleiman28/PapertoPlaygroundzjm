@@ -299,5 +299,20 @@ var PG = (function () {
     return V;
   }
 
-  return { fmt: fmt, lite: lite, makeV: makeV, ticks: ticks };
+  /* Fill {r.key}, {r.key[0][1]} or {r.key:3} placeholders with live values from compute(). Returns {text, bad}. */
+  function fill(text, r) {
+    var bad = [];
+    var out = String(text === undefined || text === null ? '' : text).replace(/\{r\.([A-Za-z_$][\w$]*(?:\.[A-Za-z_$][\w$]*|\[\d+\])*)(?::(\d))?\}/g, function (m, path, d) {
+      var v = r, parts = path.match(/[A-Za-z_$][\w$]*|\d+/g);
+      for (var i = 0; i < parts.length && v !== undefined && v !== null; i++) v = v[parts[i]];
+      if (typeof v === 'number' && isFinite(v)) return fmt(v, d === undefined ? undefined : +d);
+      if (typeof v === 'string' || typeof v === 'boolean') return String(v);
+      var flat = function (x) { return Array.isArray(x) ? '[' + x.map(flat).join(', ') + ']' : (typeof x === 'number' && isFinite(x) ? fmt(x, d === undefined ? undefined : +d) : null); };
+      if (Array.isArray(v) && v.length && v.length <= 12 && flat(v).indexOf('null') < 0) return flat(v);
+      bad.push(m); return m;
+    });
+    return { text: out, bad: bad };
+  }
+
+  return { fmt: fmt, lite: lite, makeV: makeV, ticks: ticks, fill: fill };
 })();

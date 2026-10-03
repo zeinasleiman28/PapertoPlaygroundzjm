@@ -18,7 +18,7 @@ SPEC (text may use <sub><sup><b><i><code><br> and Unicode math):
 "controls":2-4 of {"id","type":"slider","label","min","max","step","value"} | {"id","type":"toggle","label","value":bool} | {"id","type":"select","label","options":[{"value","label"}],"value"} | {"id","type":"vector","label","value":[nums],"min","max","step","resizable"?:{"min","max","fill"}} | {"id","type":"matrix","label","value":[[nums]],"rowLabels","colLabels","min","max","step"},
 "readouts":[{"key":compute() output key,"label","digits"?}] 3-6 intermediate and final values,
 "figure_caption":how to read the figure,
-"explorations":exactly 2 {"title","preset":{control id:value} that creates exactly the situation in the title,"change","observe":what the learner will see (quote a number only if you derived it exactly from the formula at that preset),"why":the cause},
+"explorations":exactly 2 {"title","preset":{control id:value} that creates exactly the situation in the title,"change","observe":what the learner will see; write every computed number as a placeholder {r.key}, {r.key[i]} or {r.key:2} (filled live from compute() at the preset), never typed by hand,"why":the cause},
 "limitation":{"kind":"Limitation"|"Assumption"|"Common misunderstanding","text"},
 "grounding":{"from_paper":[{"claim","where"}] 2-4, only what the excerpt states,"ours":[2-4 strings: toy values, simplifications]}}
 

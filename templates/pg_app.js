@@ -48,9 +48,12 @@
       var art = h('article', { 'class': 'pg-exp' }, ex);
       h('h3', {}, art, 'Experiment ' + (i + 1) + ': ' + lite(e.title));
       var dl = h('dl', {}, art);
-      h('dt', {}, dl, 'Change'); h('dd', {}, dl, lite(e.change));
-      h('dt', {}, dl, 'Observe'); h('dd', {}, dl, lite(e.observe));
-      h('dt', {}, dl, 'Why'); h('dd', {}, dl, lite(e.why));
+      var er = null;  // numbers quoted in the text are computed live at this experiment's preset
+      try { if (hasCompute()) er = compute(clone(merged(e.preset))); } catch (x) { er = null; }
+      var live = function (t) { return er ? PG.fill(t, er).text : t; };
+      h('dt', {}, dl, 'Change'); h('dd', {}, dl, lite(live(e.change)));
+      h('dt', {}, dl, 'Observe'); h('dd', {}, dl, lite(live(e.observe)));
+      h('dt', {}, dl, 'Why'); h('dd', {}, dl, lite(live(e.why)));
       if (e.preset && typeof e.preset === 'object' && Object.keys(e.preset).length) {
         var b = h('button', { type: 'button', 'class': 'pg-btn' }, art, 'Set up experiment ' + (i + 1));
         b.addEventListener('click', function () { state = merged(e.preset); buildControls(); update(); flash(); });
