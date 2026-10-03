@@ -66,7 +66,7 @@ case.json ─► read all fields, locate and trim excerpt ─► 1 generation ca
 
 ## Example input/output
 
-`examples/attention/` holds `case.json` (public Example A, with a short excerpt paraphrased in our own words) together with the `index.html` and `trace.jsonl` produced by one real run of the command above. That run passed every local check on the first call: 1 request, about 5.3k tokens, about 16 s, with 9/9 brief requirements covered. Its trace lists each check round. Runs that need repairs log the failing checks, the targeted repair requests and the result of each revision in the same way. Assessed outputs are generated fresh.
+`examples/attention/` holds `case.json` (public Example A, with a short excerpt paraphrased in our own words) together with the `index.html` and `trace.jsonl` produced by one real run of the command above. That run passed every local check on the first call: 1 request, about 5.1k tokens, about 15 s, with 10/10 brief requirements covered. Its trace lists each check round. Runs that need repairs log the failing checks, the targeted repair requests and the result of each revision in the same way. Assessed outputs are generated fresh.
 
 `examples/cases/` holds the practice briefs used during development. They cover the two public examples plus softmax temperature, batch normalisation, dropout, Adam, gradient descent, an RC low-pass filter and Bayes' rule, each with a short paraphrased excerpt. `python tools/run_cases.py deepseek/deepseek-v4.1-flash` runs them all and prints a cost table.
 
