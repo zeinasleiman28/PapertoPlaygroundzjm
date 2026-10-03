@@ -1,0 +1,5 @@
+{
+  "source_url": "https://arxiv.org/pdf/1502.03167",
+  "focus": "Explain the batch normalizing transform (Algorithm 1, Section 3) on one feature over a small mini-batch. Let the learner edit the batch values, epsilon, gamma and beta. Show the batch mean, variance, normalized values and outputs. Check that with gamma=1 and beta=0 the outputs have mean 0 and variance close to 1, and that setting gamma = sqrt(var+eps) and beta = mean recovers the inputs.",
+  "audience": "Engineering undergraduate who has trained a simple neural network."
+}

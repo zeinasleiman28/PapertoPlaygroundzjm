@@ -1,0 +1,5 @@
+{
+  "source_url": "https://arxiv.org/pdf/1412.6980",
+  "focus": "Explain Adam's moment estimates and bias correction (Algorithm 1 and Section 3). Let the learner change beta1, beta2 and a short sequence of gradients, and show the raw first/second moment estimates, the bias-corrected estimates and the resulting step at each time step. Show why the raw estimates are biased toward zero at early steps. Check that with a constant gradient g the corrected first moment equals g exactly at every step.",
+  "audience": "Engineering undergraduate who knows gradient descent."
+}

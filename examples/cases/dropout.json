@@ -1,0 +1,5 @@
+{
+  "source_url": "https://arxiv.org/pdf/1207.0580",
+  "focus": "Explain dropout as random omission of hidden units with probability 0.5 and the test-time weight halving (the 'mean network'). Let the learner change the retention probability and a small vector of unit activations and outgoing weights. Compare the expected training-time input to the next unit with the test-time scaled input, using exact expectations (enumerate all masks for up to 6 units) rather than random sampling. Check that the expected training-time sum equals the test-time scaled sum.",
+  "audience": "Engineering undergraduate who knows what a neural network layer is."
+}

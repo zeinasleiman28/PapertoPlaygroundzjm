@@ -1,0 +1,203 @@
+/* Paper-to-Playground app runtime. Generic; reads the spec embedded in the page and
+   the generated compute/render/checks functions. */
+(function () {
+  'use strict';
+  var SPEC = JSON.parse(document.getElementById('pg-spec').textContent);
+  var fmt = PG.fmt, lite = PG.lite;
+  var $ = function (id) { return document.getElementById(id); };
+  function h(tag, attrs, parent, html) {
+    var e = document.createElement(tag);
+    if (attrs) for (var k in attrs) if (attrs[k] !== undefined && attrs[k] !== null) e.setAttribute(k, String(attrs[k]));
+    if (html !== undefined) e.innerHTML = html;
+    if (parent) parent.appendChild(e);
+    return e;
+  }
+  function clone(v) { return v === undefined ? v : JSON.parse(JSON.stringify(v)); }
+  var CONTROLS = SPEC.controls || [];
+  function defaults() { var d = {}; CONTROLS.forEach(function (c) { d[c.id] = clone(c.value); }); return d; }
+  function merged(over) { var d = defaults(); if (over) for (var k in over) if (k in d) d[k] = clone(over[k]); return d; }
+  var state = defaults();
+  var hasCompute = function () { return typeof compute === 'function'; };
+
+  /* ---------- static text ---------- */
+  function paras(t) { if (!t) return ''; return String(t).split(/\n\s*\n/).map(function (p) { return '<p>' + lite(p) + '</p>'; }).join(''); }
+  function fillText() {
+    document.title = PG.lite(SPEC.title || 'Interactive explanation').replace(/<[^>]*>/g, '');
+    $('pg-title').innerHTML = lite(SPEC.title);
+    $('pg-tagline').innerHTML = lite(SPEC.tagline || '');
+    var src = SPEC.source || {}, sl = $('pg-source'), bits = [];
+    if (src.paper) bits.push('<cite>' + lite(src.paper) + '</cite>');
+    if (src.authors) bits.push(lite(src.authors));
+    if (src.section) bits.push(lite(src.section));
+    if (src.equation) bits.push(lite(src.equation));
+    sl.innerHTML = 'Source: ' + bits.join(', ');
+    if (src.url && /^https?:\/\//.test(src.url)) {
+      sl.appendChild(document.createTextNode(' ('));
+      h('a', { href: src.url, rel: 'noopener' }, sl, 'paper link');
+      sl.appendChild(document.createTextNode(')'));
+    }
+    $('pg-idea').innerHTML = paras(SPEC.idea);
+    $('pg-why').innerHTML = paras(SPEC.why);
+    if (SPEC.formula) $('pg-formula').innerHTML = lite(SPEC.formula); else $('pg-formula').style.display = 'none';
+    var tb = $('pg-symbols');
+    (SPEC.symbols || []).forEach(function (s) { var tr = h('tr', {}, tb); h('th', { scope: 'row' }, tr, lite(s.symbol)); h('td', {}, tr, lite(s.meaning)); });
+    if (!(SPEC.symbols || []).length) $('pg-symbols-wrap').style.display = 'none';
+    $('pg-figcap').innerHTML = lite(SPEC.figure_caption || '');
+    var ex = $('pg-explore');
+    (SPEC.explorations || []).forEach(function (e, i) {
+      var art = h('article', { 'class': 'pg-exp' }, ex);
+      h('h3', {}, art, 'Experiment ' + (i + 1) + ': ' + lite(e.title));
+      var dl = h('dl', {}, art);
+      h('dt', {}, dl, 'Change'); h('dd', {}, dl, lite(e.change));
+      h('dt', {}, dl, 'Observe'); h('dd', {}, dl, lite(e.observe));
+      h('dt', {}, dl, 'Why'); h('dd', {}, dl, lite(e.why));
+      if (e.preset && typeof e.preset === 'object' && Object.keys(e.preset).length) {
+        var b = h('button', { type: 'button', 'class': 'pg-btn' }, art, 'Set up experiment ' + (i + 1));
+        b.addEventListener('click', function () { state = merged(e.preset); buildControls(); update(); flash(); });
+      }
+    });
+    var lim = SPEC.limitation || {};
+    $('pg-limit-kind').innerHTML = lite(lim.kind || 'Limitation');
+    $('pg-limit').innerHTML = paras(lim.text);
+    var gr = SPEC.grounding || {};
+    var fp = $('pg-from-paper');
+    (gr.from_paper || []).forEach(function (g) {
+      if (typeof g === 'string') { h('li', {}, fp, lite(g)); return; }
+      h('li', {}, fp, lite(g.claim) + (g.where ? ' <span class="pg-where">(' + lite(g.where) + ')</span>' : ''));
+    });
+    var ours = $('pg-ours');
+    (gr.ours || []).forEach(function (g) { h('li', {}, ours, lite(typeof g === 'string' ? g : g.claim)); });
+  }
+  function flash() {
+    var b = $('pg-bench'); b.classList.remove('pg-flash'); void b.offsetWidth; b.classList.add('pg-flash');
+    if (window.matchMedia && window.matchMedia('(max-width: 960px)').matches) b.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  /* ---------- controls ---------- */
+  function plainText(s) { return String(s || '').replace(/<[^>]*>/g, ''); }
+  function clamp(v, c) { if (typeof c.min === 'number') v = Math.max(c.min, v); if (typeof c.max === 'number') v = Math.min(c.max, v); return v; }
+  function numIn(val, c, onset, label) {
+    var i = h('input', { type: 'number', value: val, step: c.step || 'any', 'aria-label': label, inputmode: 'decimal' });
+    if (typeof c.min === 'number') i.min = c.min;
+    if (typeof c.max === 'number') i.max = c.max;
+    i.addEventListener('input', function () { var v = parseFloat(i.value); if (isFinite(v)) { onset(clamp(v, c)); update(); } });
+    i.addEventListener('change', function () { var v = parseFloat(i.value); i.value = isFinite(v) ? clamp(v, c) : val; });
+    return i;
+  }
+  function buildControls() {
+    var box = $('pg-controls'); box.innerHTML = '';
+    CONTROLS.forEach(function (c) {
+      var wrap = h('div', { 'class': 'pg-ctl pg-ctl-' + c.type }, box), id = 'ctl-' + c.id;
+      var lab = h('label', { 'for': id, 'class': 'pg-ctl-label' }, wrap, '<span>' + lite(c.label) + '</span>');
+      if (c.type === 'slider') {
+        var unit = c.unit ? ' ' + lite(c.unit) : '';
+        var out = h('output', { 'for': id, 'class': 'pg-ctl-val' }, lab, fmt(state[c.id]) + unit);
+        var r = h('input', { type: 'range', id: id, min: c.min, max: c.max, step: c.step || 'any', value: state[c.id] }, wrap);
+        r.addEventListener('input', function () { state[c.id] = parseFloat(r.value); out.innerHTML = fmt(state[c.id]) + unit; update(); });
+      } else if (c.type === 'number') {
+        var n = numIn(state[c.id], c, function (v) { state[c.id] = v; }, plainText(c.label)); n.id = id; wrap.appendChild(n);
+      } else if (c.type === 'toggle') {
+        wrap.classList.add('pg-ctl-row');
+        var cb = h('input', { type: 'checkbox', id: id }, null); cb.checked = !!state[c.id];
+        wrap.insertBefore(cb, lab);
+        cb.addEventListener('change', function () { state[c.id] = cb.checked; update(); });
+      } else if (c.type === 'select') {
+        var sel = h('select', { id: id }, wrap);
+        (c.options || []).forEach(function (o) {
+          var op = h('option', { value: JSON.stringify(o.value) }, sel, lite(o.label !== undefined ? o.label : String(o.value)));
+          if (JSON.stringify(o.value) === JSON.stringify(state[c.id])) op.selected = true;
+        });
+        sel.addEventListener('change', function () { state[c.id] = JSON.parse(sel.value); update(); });
+      } else if (c.type === 'vector' && Array.isArray(state[c.id])) {
+        vectorCtl(wrap, c, id);
+      } else if (c.type === 'matrix' && Array.isArray(state[c.id])) {
+        matrixCtl(wrap, c, id);
+      }
+      if (c.help) h('div', { 'class': 'pg-help' }, wrap, lite(c.help));
+    });
+  }
+  function vectorCtl(wrap, c, id) {
+    var row = h('div', { 'class': 'pg-vec', id: id, role: 'group' }, wrap), v = state[c.id];
+    v.forEach(function (x, i) {
+      var cell = h('div', { 'class': 'pg-vec-cell' }, row);
+      var lb = c.labels && c.labels[i] !== undefined ? c.labels[i] : String(i + 1);
+      h('span', { 'class': 'pg-vec-lab' }, cell, lite(lb));
+      cell.appendChild(numIn(x, c, function (val) { state[c.id][i] = val; }, plainText(c.label) + ' ' + plainText(lb)));
+    });
+    var rz = c.resizable;
+    if (rz) {
+      var bar = h('div', { 'class': 'pg-resize' }, wrap);
+      var minus = h('button', { type: 'button', 'class': 'pg-btn pg-btn-small' }, bar, 'Remove last entry');
+      var plus = h('button', { type: 'button', 'class': 'pg-btn pg-btn-small' }, bar, 'Add an entry');
+      minus.disabled = v.length <= (rz.min || 1);
+      plus.disabled = v.length >= (rz.max || 12);
+      minus.addEventListener('click', function () { if (state[c.id].length > (rz.min || 1)) { state[c.id].pop(); buildControls(); update(); } });
+      plus.addEventListener('click', function () { if (state[c.id].length < (rz.max || 12)) { state[c.id].push(typeof rz.fill === 'number' ? rz.fill : 0); buildControls(); update(); } });
+    }
+  }
+  function matrixCtl(wrap, c, id) {
+    var sc = h('div', { 'class': 'pg-scroll' }, wrap), t = h('table', { 'class': 'pg-mat', id: id }, sc), m = state[c.id];
+    if (c.colLabels) { var hr = h('tr', {}, h('thead', {}, t)); h('th', {}, hr, ''); c.colLabels.forEach(function (l) { h('th', { scope: 'col' }, hr, lite(l)); }); }
+    var tb = h('tbody', {}, t);
+    m.forEach(function (row, i) {
+      var tr = h('tr', {}, tb);
+      h('th', { scope: 'row' }, tr, lite(c.rowLabels && c.rowLabels[i] !== undefined ? c.rowLabels[i] : 'row ' + (i + 1)));
+      row.forEach(function (x, j) { var td = h('td', {}, tr); td.appendChild(numIn(x, c, function (val) { state[c.id][i][j] = val; }, plainText(c.label) + ' row ' + (i + 1) + ' column ' + (j + 1))); });
+    });
+  }
+
+  /* ---------- readouts ---------- */
+  function readouts(r) {
+    var box = $('pg-readouts'); box.innerHTML = '';
+    (SPEC.readouts || []).forEach(function (ro) {
+      var v = r ? r[ro.key] : undefined, d = h('div', { 'class': 'pg-ro' }, box);
+      h('div', { 'class': 'pg-ro-label' }, d, lite(ro.label));
+      var val = h('div', { 'class': 'pg-ro-val' }, d), digits = typeof ro.digits === 'number' ? ro.digits : undefined;
+      if (Array.isArray(v) && Array.isArray(v[0])) {
+        var t = h('table', { 'class': 'pg-mini' }, h('div', { 'class': 'pg-scroll' }, val));
+        v.forEach(function (row) { var tr = h('tr', {}, t); row.forEach(function (x) { h('td', {}, tr, lite(fmt(x, digits))); }); });
+        d.classList.add('pg-ro-wide');
+      } else if (Array.isArray(v)) {
+        val.innerHTML = '[ ' + v.map(function (x) { return lite(fmt(x, digits)); }).join(', ') + ' ]';
+        if (v.length > 4) d.classList.add('pg-ro-wide');
+      } else {
+        val.innerHTML = lite(fmt(v, digits)) + (ro.unit ? ' <span class="pg-unit">' + lite(ro.unit) + '</span>' : '');
+      }
+    });
+    if (r && typeof r.note === 'string' && r.note) { var n = h('div', { 'class': 'pg-ro pg-ro-wide pg-ro-note' }, box); n.innerHTML = lite(r.note); }
+  }
+
+  /* ---------- update loop ---------- */
+  function errBox(msg) { var p = h('p', { 'class': 'pg-error' }, $('pg-figure')); p.textContent = msg; }
+  function update() {
+    var f = $('pg-figure'); f.innerHTML = '';
+    if (!hasCompute()) { errBox('The interactive model is unavailable for this page.'); readouts(null); return; }
+    var r = null;
+    try { r = compute(clone(state)); }
+    catch (e) { errBox('The calculation could not run for these inputs: ' + e.message); readouts(null); return; }
+    readouts(r);
+    try { render(PG.makeV(f), clone(state), r); }
+    catch (e) { errBox('The figure could not be drawn for these inputs: ' + e.message); }
+  }
+
+  /* ---------- live checks ---------- */
+  function runChecks() {
+    var ul = $('pg-checks'), list = (typeof checks !== 'undefined' && Array.isArray(checks)) ? checks : [], pass = 0;
+    list.forEach(function (c) {
+      var ok = false, detail = '';
+      try {
+        var p = merged(c.inputs), r = compute(clone(p)), res = c.test(r, p);
+        if (res && typeof res === 'object') { ok = !!res.pass; detail = res.detail || ''; } else ok = !!res;
+      } catch (e) { ok = false; detail = e.message; }
+      if (ok) pass++;
+      h('li', { 'class': ok ? 'pg-ok' : 'pg-fail' }, ul, (ok ? 'Passed: ' : 'Failed: ') + lite(c.name) + (detail ? ' <span class="pg-where">' + lite(detail) + '</span>' : ''));
+    });
+    $('pg-checks-sum').textContent = list.length ? (pass + ' of ' + list.length + ' checks pass, computed in your browser when the page loaded.') : 'No automatic checks are available for this page.';
+  }
+
+  fillText();
+  buildControls();
+  $('pg-reset').addEventListener('click', function () { state = defaults(); buildControls(); update(); });
+  update();
+  runChecks();
+})();
