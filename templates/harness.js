@@ -24,7 +24,9 @@ function __walk(n, acc) {
 function __clone(v) { return JSON.parse(JSON.stringify(v)); }
 function __nonFinite(v, path, out) {
   if (out.length > 4) return;
-  if (typeof v === 'number') { if (!isFinite(v)) out.push(path + '=' + v); }
+  // NaN is always a bug; +/-Infinity can be a correct value (e.g. a decay time with zero damping) and is shown as ∞.
+  // Figures are still checked separately for invalid coordinates.
+  if (typeof v === 'number') { if (isNaN(v)) out.push(path + '=' + v); }
   else if (Array.isArray(v)) v.forEach(function (x, i) { __nonFinite(x, path + '[' + i + ']', out); });
   else if (v && typeof v === 'object') Object.keys(v).forEach(function (k) { __nonFinite(v[k], path + '.' + k, out); });
 }
@@ -108,7 +110,7 @@ function __run(spec) {
     catch (e) { (cs.kind === 'default' ? rep.critical : bucket).push('compute() threw on ' + cs.label + ': ' + e.message); return; }
     if (!r || typeof r !== 'object') { bucket.push('compute() must return an object (' + cs.label + ')'); return; }
     var nf = []; __nonFinite(r, 'r', nf);
-    if (nf.length) rep.major.push('compute() returned non-finite numbers on ' + cs.label + ': ' + nf.join(', '));
+    if (nf.length) rep.major.push('compute() returned NaN on ' + cs.label + ': ' + nf.join(', '));
     if (cs.kind === 'default') {
       rep.missing_readouts = [];
       (spec.readouts || []).forEach(function (ro) { if (!(ro.key in r)) { rep.missing_readouts.push(ro.key); rep.major.push('readout key "' + ro.key + '" is not returned by compute()'); } });

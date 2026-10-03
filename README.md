@@ -2,7 +2,7 @@
 
 An agent that turns a focused research-paper excerpt and a learning brief into one self-contained, interactive HTML page that explains a single mechanism to an engineering undergraduate.
 
-**Team members:** TEAM NAMES HERE (EECE503P / EECE798S)
+**Team members:** Zeina Sleiman, Jad DIa and Michelle (EECE503P / EECE798S)
 
 **MODEL_ID:** `deepseek/deepseek-v4.1-flash` (via OpenRouter). It is also the default when `--model` is omitted.
 
@@ -47,7 +47,7 @@ case.json ─► read all fields, locate and trim excerpt ─► 1 generation ca
    - zero, equal and one-dominant vectors, all-zero and all-one matrices, flipped toggles and every select option;
    - seeded random input states.
 
-   It checks for exceptions, non-finite numbers, NaN or undefined text in figures, missing readouts and unresolved placeholders. It also checks that every control actually changes the calculation or the figure, and runs the model's known-answer checks. The spec is also validated, and the code is scanned for network, DOM, randomness and other forbidden features.
+   It checks for exceptions, NaN values, NaN or undefined text in figures, missing readouts and unresolved placeholders. It also checks that every control actually changes the calculation or the figure, and runs the model's known-answer checks. The spec is also validated, and the code is scanned for network, DOM, randomness and other forbidden features.
 4. **Deterministic fixes before any repair.** Out-of-range defaults, invalid select values, unknown preset keys, missing readouts, wrongly shaped fields and extra experiments are fixed in Python without a model call.
 5. **Targeted repair, only on failure.** The agent sends the deduplicated failure messages and only the failing block (SPEC or CODE), with a short repair prompt. It makes at most 2 repairs, stops early if a repair makes no progress, and keeps the best version seen.
 6. **Assembly** (`playground/build.py`). The spec, the generated code, the chart library (`templates/pg_v.js`: bars, line plots with optional log axes, heatmaps, diagrams, tables, worked-arithmetic notes) and the runtime (`templates/pg_app.js`: controls, presets, live readouts, live checks) are inlined into `templates/page.html`. A final scan confirms the page has no external resources.
@@ -63,7 +63,7 @@ case.json ─► read all fields, locate and trim excerpt ─► 1 generation ca
 
 ## Example input/output
 
-`examples/attention/` holds `case.json` (public Example A, with a short excerpt paraphrased in our own words) together with the `index.html` and `trace.jsonl` produced by one real run of the command above. That run shows a local check failing, two targeted repairs, and a final pass. Assessed outputs are generated fresh.
+`examples/attention/` holds `case.json` (public Example A, with a short excerpt paraphrased in our own words) together with the `index.html` and `trace.jsonl` produced by one real run of the command above. That run passed every local check on the first call: 1 request, about 4.5k tokens, about 13 s. Its trace lists each check round. Runs that need repairs log the failing checks, the targeted repair requests and the result of each revision in the same way. Assessed outputs are generated fresh.
 
 `examples/cases/` holds the practice briefs used during development. They cover the two public examples plus softmax temperature, batch normalisation, dropout, Adam, gradient descent, an RC low-pass filter and Bayes' rule, each with a short paraphrased excerpt. `python tools/run_cases.py deepseek/deepseek-v4.1-flash` runs them all and prints a cost table.
 
