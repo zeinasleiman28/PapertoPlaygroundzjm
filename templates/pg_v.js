@@ -185,7 +185,12 @@ var PG = (function () {
       var Yl = function (v) { return y1 - (v - ry[0]) / (ry[1] - ry[0]) * (y1 - y0); };
       var X = function (v) { return Xl(lx ? Math.log(v) / Math.LN10 : v); };
       var Y = function (v) { return Yl(ly ? Math.log(v) / Math.LN10 : v); };
-      function logTicks(lo, hi) { var out = []; for (var e = Math.ceil(lo - 1e-9); e <= hi + 1e-9; e++) out.push(e); return out.length >= 2 ? out : ticks(lo, hi, 4); }
+      // one tick per decade, thinned to every k-th decade so at most ~6 labels are drawn
+      function logTicks(lo, hi) {
+        var a = Math.ceil(lo - 1e-9), b = Math.floor(hi + 1e-9), k = Math.max(1, Math.ceil((b - a + 1) / 6)), out = [];
+        for (var e = b; e >= a; e -= k) out.unshift(e);
+        return out.length >= 2 ? out : ticks(lo, hi, 4);
+      }
       if (ly) {
         logTicks(ry[0], ry[1]).forEach(function (e) { var yy = Yl(e); s('line', { x1: x0, x2: x1, y1: r2(yy), y2: r2(yy), 'class': 'pg-gridline' }, g); txt(g, x0 - 6, yy + 4, fmt(Math.pow(10, e)), 'pg-tick', 'end'); });
         s('line', { x1: x0, x2: x0, y1: y0, y2: y1, 'class': 'pg-axis' }, g);
