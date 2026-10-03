@@ -24,7 +24,7 @@ from playground import checks as CK
 from playground.build import build_page, fallback_spec
 from playground.llm import LLM, BudgetExceeded
 from playground.prompts import REPAIR_SYSTEM, SYSTEM, repair_prompt, user_prompt
-from playground.source import fetch_excerpt, find_excerpt
+from playground.source import fetch_excerpt, find_excerpt, trim_excerpt
 
 GEN_MAX_TOKENS = int(os.environ.get("P2P_GEN_MAX_TOKENS", "9000"))
 REPAIR_MAX_TOKENS = int(os.environ.get("P2P_REPAIR_MAX_TOKENS", "8000"))
@@ -55,6 +55,7 @@ def log_checks(trace, stage, res, attempt):
     st = res.get("stats", {})
     trace.event(stage, "run_checks", "pass" if not res["critical"] and not res["major"] else "fail",
                 attempt=attempt, **summarize(res), problems=(res["critical"] + res["major"] + res["minor"])[:15],
+                auto_fixes=res.get("fixes") or None,
                 cases_exercised=st.get("cases"), figure_panels=st.get("panels"),
                 self_checks=f'{st.get("checks_passed")}/{st.get("checks_total")}' if "checks_total" in st else None,
                 self_check_results=st.get("check_results"))
@@ -81,7 +82,9 @@ def main() -> int:
         case = json.loads(Path(args.input).read_text(encoding="utf-8"))
         assert isinstance(case, dict)
     except Exception as e:
-        trace.event("input", "read_case", "error", error=str(e))
+        trace.event("input", "read_case", "error", error=str(e)[:300])
+        (out / "index.html").write_text(build_page(fallback_spec({}, "the input case could not be read"), ""), encoding="utf-8")
+        trace.event("output", "write_page", "fallback")
         trace.close()
         return 2
     missing = [k for k in ("source_url", "focus", "audience") if not str(case.get(k, "")).strip()]
@@ -92,9 +95,9 @@ def main() -> int:
     note = "supplied in case.json" if excerpt else ""
     if not excerpt:
         excerpt, note = fetch_excerpt(str(case.get("source_url", "")), str(case.get("focus", "")))
-    if len(excerpt) > 24000:
-        excerpt = excerpt[:24000]
-        note += " (truncated to 24000 chars)"
+    if excerpt:
+        excerpt, tnote = trim_excerpt(excerpt, str(case.get("focus", "")))
+        note = (note + "; " + tnote).strip("; ") if tnote else note
     trace.event("ground", "locate_excerpt", "ok" if excerpt else "none", source=ex_key or "url", chars=len(excerpt), note=note)
 
     llm = LLM(args.model, trace, t0, reasoning=args.reasoning)
@@ -109,11 +112,18 @@ def main() -> int:
 
     try:
         # ---- generate ----
-        raw = llm.chat(SYSTEM, user_prompt(case, ex_key, excerpt, note or "unavailable"), GEN_MAX_TOKENS, "generate")
+        prompt = user_prompt(case, ex_key, excerpt, note or "unavailable")
+        try:
+            raw = llm.chat(SYSTEM, prompt, GEN_MAX_TOKENS, "generate")
+        except BudgetExceeded:
+            raise
+        except Exception as e:  # transient API failure: one more attempt while the budget allows
+            trace.event("generate", "retry_after_error", "started", error=str(e)[:200])
+            raw = llm.chat(SYSTEM, prompt, GEN_MAX_TOKENS, "generate")
         spec_text, code_text = CK.parse_blocks(raw)
         trace.event("generate", "parse_output", "ok" if spec_text and code_text else "error",
                     spec_chars=len(spec_text or ""), code_chars=len(code_text or ""))
-        res = CK.evaluate(spec_text, code_text)
+        res = CK.evaluate(spec_text, code_text, case)
         log_checks(trace, "verify", res, 0)
         consider(spec_text, code_text, res)
 
@@ -131,12 +141,18 @@ def main() -> int:
                                GEN_MAX_TOKENS, "revise")
                 s_txt = c_txt = None
             else:
-                trace.event("revise", "request_repair", "started", attempt=attempt, n_problems=len(problems))
-                raw = llm.chat(REPAIR_SYSTEM, repair_prompt(s_txt, c_txt, problems, focus), REPAIR_MAX_TOKENS, "revise")
+                want = CK.blocks_to_fix(problems)
+                trace.event("revise", "request_repair", "started", attempt=attempt, n_problems=len(problems),
+                            blocks=sorted(want))
+                raw = llm.chat(REPAIR_SYSTEM, repair_prompt(r["spec"], c_txt, problems, focus, want),
+                               REPAIR_MAX_TOKENS, "revise")
+                s_txt = r["spec"]  # carry deterministic fixes forward
             ns, nc = CK.parse_blocks(raw)
+            if ns is None and nc is None and raw.strip():  # model returned a bare block without markers
+                ns, nc = (raw, None) if raw.lstrip().startswith("{") else (None, raw)
             ns = s_txt if (ns is None or ns.strip().upper() == "UNCHANGED") else ns
             nc = c_txt if (nc is None or nc.strip().upper() == "UNCHANGED") else nc
-            res = CK.evaluate(ns, nc)
+            res = CK.evaluate(ns, nc, case)
             log_checks(trace, "verify", res, attempt)
             prev = best[0]
             consider(ns, nc, res)

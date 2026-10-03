@@ -7,7 +7,7 @@ import requests
 
 EXCERPT_KEYS = ("excerpt", "source_excerpt", "paper_excerpt", "text", "source_text", "paper_text", "context", "content", "passage")
 META_KEYS = {"source_url", "focus", "audience", "title", "paper_title", "section", "id", "name"}
-MAX_CHARS = 14000
+MAX_CHARS = 7000  # ~1.8k tokens; hidden excerpts are focused sections
 
 
 def find_excerpt(case: dict):
@@ -32,6 +32,30 @@ def _html_to_text(raw: str) -> str:
     return re.sub(r"[ \t\r\f\v]+", " ", re.sub(r"\n\s*\n+", "\n\n", raw)).strip()
 
 
+_TAIL = re.compile(r"(?im)^\s*(?:\d+\.?\s*)?(references|bibliography|acknowledg(?:e)?ments?)\s*$")
+
+
+def trim_excerpt(text: str, focus: str, max_chars: int = MAX_CHARS):
+    """Drop reference lists/acknowledgements, collapse whitespace, and keep the window that best matches the
+    focus (keywords, section and equation numbers). Returns (text, note)."""
+    orig = len(text)
+    m = _TAIL.search(text)
+    if m and m.start() > len(text) * 0.3:
+        text = text[:m.start()]
+    text = re.sub(r"[ \t]+", " ", re.sub(r"\n{3,}", "\n\n", text)).strip()
+    if len(text) > max_chars:
+        words = {w.lower() for w in re.findall(r"[A-Za-z][A-Za-z\-]{3,}", focus or "")}
+        nums = re.findall(r"\b\d+(?:\.\d+)+\b|\(\d+\)", focus or "")
+        low, best, best_i = text.lower(), -1, 0
+        for i in range(0, len(text) - max_chars + 500, 500):
+            win = low[i:i + max_chars]
+            sc = sum(win.count(w) for w in words) + sum(25 * win.count(n.lower()) for n in nums)
+            if sc > best:
+                best, best_i = sc, i
+        text = text[best_i:best_i + max_chars]
+    return text, ("trimmed %d -> %d chars" % (orig, len(text)) if len(text) < orig else "")
+
+
 def _window(text: str, focus: str) -> str:
     m = re.search(r"[Ss]ection\s+(\d+(?:\.\d+)*)", focus or "")
     if m:
@@ -43,7 +67,7 @@ def _window(text: str, focus: str) -> str:
     return text[:MAX_CHARS]
 
 
-def fetch_excerpt(url: str, focus: str, timeout: float = 4.0):
+def fetch_excerpt(url: str, focus: str, timeout: float = 3.0):
     """Best effort. Returns (text, note)."""
     if not url or not url.startswith("http"):
         return "", "no URL"

@@ -5,4 +5,4 @@ certifi==2024.8.30
 charset-normalizer==3.4.0
 mini-racer==0.14.1
 pypdf==5.1.0
-python-dotenv
+python-dotenv==1.2.4

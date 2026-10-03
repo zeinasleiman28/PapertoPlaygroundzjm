@@ -5,9 +5,10 @@ import time
 import requests
 
 URL = "https://openrouter.ai/api/v1/chat/completions"
-MAX_REQUESTS = 10
-MAX_COMPLETION_TOKENS = 30000
-TIME_LIMIT_S = 600
+# Safety margins under the assessment limits (10 requests, 30,000 completion tokens, 600 s per case).
+MAX_REQUESTS = 6
+MAX_COMPLETION_TOKENS = 27000
+TIME_LIMIT_S = 510
 
 
 class BudgetExceeded(RuntimeError):
@@ -24,7 +25,7 @@ class LLM:
         self.requests = 0
         self.prompt_tokens = 0
         self.completion_tokens = 0
-        self.deadline = t0 + TIME_LIMIT_S - 45  # leave room for checks and writing
+        self.deadline = t0 + TIME_LIMIT_S  # leaves >90 s before the hard limit for checks and writing
 
     def remaining_time(self) -> float:
         return self.deadline - time.time()
@@ -42,7 +43,7 @@ class LLM:
             budget = min(max_tokens, self.remaining_completion() - 200)
             if budget < 800:
                 raise BudgetExceeded("completion-token budget exhausted")
-            timeout = self.remaining_time()
+            timeout = min(self.remaining_time(), 240)  # one stuck call must not eat the whole budget
             if timeout < 20:
                 raise BudgetExceeded("time budget exhausted")
             body = {
@@ -89,12 +90,12 @@ class LLM:
             if ok:
                 return content
             # Retry policy: one retry without the reasoning parameter on a 400, short backoff on 429/5xx/network.
-            if attempts >= 3:
+            if attempts >= 2:  # at most one quick retry (retries count toward the request limit)
                 raise RuntimeError(f"LLM call failed: status={status} err={err or api_err}")
             if status == 400 and "reasoning" in body:
                 self.reasoning = "off"
                 continue
             if status in (429, 500, 502, 503, 504, None) or (status == 200 and not content.strip()):
-                time.sleep(min(2.0 * attempts, max(0.0, self.remaining_time() - 30)))
+                time.sleep(min(1.0 * attempts, max(0.0, self.remaining_time() - 30)))
                 continue
             raise RuntimeError(f"LLM call failed: status={status} err={err or api_err}")

@@ -1,5 +1,6 @@
 {
   "source_url": "https://arxiv.org/pdf/1412.6980",
   "focus": "Explain Adam's moment estimates and bias correction (Algorithm 1 and Section 3). Let the learner change beta1, beta2 and a short sequence of gradients, and show the raw first/second moment estimates, the bias-corrected estimates and the resulting step at each time step. Show why the raw estimates are biased toward zero at early steps. Check that with a constant gradient g the corrected first moment equals g exactly at every step.",
-  "audience": "Engineering undergraduate who knows gradient descent."
+  "audience": "Engineering undergraduate who knows gradient descent.",
+  "excerpt": "Algorithm 1 and Section 3 (paraphrased). Adam keeps exponential moving averages of the gradient (m_t) and of the squared gradient (v_t), with decay rates beta1 and beta2 in [0,1): m_t = beta1*m_{t-1} + (1-beta1)*g_t and v_t = beta2*v_{t-1} + (1-beta2)*g_t^2, both initialised at zero. Because of the zero initialisation these moment estimates are biased towards zero, especially during the first steps and when the decay rates are close to 1. Adam corrects this: m_hat_t = m_t/(1-beta1^t) and v_hat_t = v_t/(1-beta2^t). The parameter update is theta_t = theta_{t-1} - alpha * m_hat_t/(sqrt(v_hat_t)+epsilon). Section 3 shows that if the gradient distribution is stationary, E[v_t] = E[g_t^2]*(1-beta2^t) plus a small term, so dividing by (1-beta2^t) removes the bias. Good default settings are alpha=0.001, beta1=0.9, beta2=0.999 and epsilon=1e-8."
 }

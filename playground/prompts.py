@@ -1,100 +1,73 @@
-"""Prompts. Generic: no paper-specific content."""
+"""Prompts. Generic: no paper-specific content. Kept short because every prompt token is scored."""
+import json
 
-CONTRACT = r"""
-You build ONE interactive teaching page that explains a single mechanism from a research paper.
-A fixed HTML template renders everything; you supply a SPEC (JSON) and CODE (JavaScript).
-
-Reply with exactly these two blocks and nothing else:
+CONTRACT = r"""Build ONE interactive teaching page for a single mechanism from a paper. A fixed template renders it; you write only content (SPEC JSON) and math/plots (CODE). Reply with exactly:
 <<<SPEC>>>
-{...json...}
+{json}
 <<<CODE>>>
-...javascript...
+javascript
 <<<END>>>
 
-SPEC fields (all text may use only <sub> <sup> <b> <i> <em> <code> <br> tags and Unicode math such as θ Σ √ ≤ ·):
-{
- "title": short, names the concept,
- "tagline": one sentence on what the learner will see,
- "source": {"paper": title, "authors": short, "url": the source_url, "section": e.g. "Section 3.2.1", "equation": e.g. "Eq. (1)" or ""},
- "idea": 2-4 short sentences for the audience; blank line separates paragraphs,
- "why": 1-3 sentences on why it matters,
- "formula": the paper's key equation in inline HTML,
- "symbols": [{"symbol": ..., "meaning": ...}] every symbol in the formula and controls,
- "controls": >=2 items, each one of
-   {"id","type":"slider","label","min","max","step","value","unit"?, "help"?}
-   {"id","type":"number","label","value","min"?,"max"?,"step"?}
-   {"id","type":"toggle","label","value":true|false}
-   {"id","type":"select","label","options":[{"value":..,"label":..}],"value":..}
-   {"id","type":"vector","label","value":[numbers],"labels"?:[..],"min"?,"max"?,"step"?,"resizable"?:{"min":n,"max":n,"fill":number}}
-   {"id","type":"matrix","label","value":[[numbers]],"rowLabels"?,"colLabels"?,"min"?,"max"?,"step"?}
- "readouts": [{"key": output key from compute, "label", "unit"?, "digits"?}] 3-8 important intermediate and final values (scalar, array or matrix),
- "figure_caption": 1-2 sentences: how to read the figure,
- "explorations": exactly 2, each {"title","preset":{control id: value, ...},"change","observe","why"}; preset puts the controls into the start state; "observe" names concrete numbers or shapes the learner will see,
- "limitation": {"kind": "Limitation"|"Assumption"|"Common misunderstanding", "text"},
- "grounding": {"from_paper": [{"claim", "where": section/equation}] 2-4 items, only things the excerpt actually states; "ours": [strings] 2-4 items: toy sizes, chosen numbers, simplifications, anything not in the excerpt}
-}
+SPEC (text may use <sub><sup><b><i><code><br> and Unicode math):
+{"title","tagline":one sentence,
+"source":{"paper","authors","url","section","equation"},
+"idea":2-4 sentences for the audience,"why":1-2 sentences,
+"formula":the excerpt's key equation, same notation,
+"symbols":[{"symbol","meaning"}] every symbol in formula, controls and figure,
+"controls":2-4 of {"id","type":"slider","label","min","max","step","value"} | {"id","type":"toggle","label","value":bool} | {"id","type":"select","label","options":[{"value","label"}],"value"} | {"id","type":"vector","label","value":[nums],"min","max","step","resizable"?:{"min","max","fill"}} | {"id","type":"matrix","label","value":[[nums]],"rowLabels","colLabels","min","max","step"},
+"readouts":[{"key":compute() output key,"label","digits"?}] 3-6 intermediate and final values,
+"figure_caption":how to read the figure,
+"explorations":exactly 2 {"title","preset":{control id:value},"change","observe":concrete numbers/shapes the learner will see,"why":the cause},
+"limitation":{"kind":"Limitation"|"Assumption"|"Common misunderstanding","text"},
+"grounding":{"from_paper":[{"claim","where"}] 2-4, only what the excerpt states,"ours":[2-4 strings: toy values, simplifications]}}
 
-CODE must define exactly these three globals, in plain ES2017, no imports, no DOM, no network, no randomness:
-function compute(p) { ... return {...}; }
-  p: {control id: current value}. Pure and deterministic. Implement the paper's equation exactly, step by step,
-  and return every intermediate quantity the figure and readouts show. Handle edge cases (zeros, equal values,
-  empty sums, log(0)) so every returned number is finite; use the paper's convention (e.g. 0·log 0 = 0).
-  Validate inputs instead of throwing (e.g. normalise or clip, and return a string field "note" explaining it).
-function render(V, p, r) { ... }
-  Draw with V only (r = compute(p)). Use 1-3 panels that make cause and effect visible. Available:
-  V.bars({title, labels, values | series:[{name,values,tone}], highlight: index|[indices], yLabel, xLabel, min, max, digits, refLines:[{y,label}]})
-  V.line({title, series:[{name,x:[..],y:[..],tone,dashed}], points:[{x,y,label,tone}], vlines:[{x,label}], hlines:[{y,label}], xLabel, yLabel, xmin, xmax, ymin, ymax})
-  V.heatmap({title, matrix, rowLabels, colLabels, min, max, digits, highlight:[[row,col]]})
-  V.diagram({title, width, height, items:[{type:"rect",x,y,w,h,label,sub,tone}, {type:"circle",cx,cy,r,label,tone},
-     {type:"arrow"|"line",x1,y1,x2,y2,label,tone,width,dashed}, {type:"text",x,y,text,size,anchor,tone}, {type:"path",d,tone,fill}]})
-  V.table({title, columns:[..], rows:[[..]], highlightRow, digits})
-  V.note(html, tone)  // one line of worked arithmetic with live numbers, e.g. "H = 0.5·1 + 0.5·1 = 1 bit"
-  V.fmt(x, digits) formats numbers. tone is one of accent|alt|ours|muted|warn|ink. SVG labels are plain text (use Unicode subscripts like q₁).
-  A sweep line plot (vary one input over a range, mark the current value with points) is often the clearest cause-and-effect view.
-const checks = [ {name, inputs:{control id: value}, test:(r,p)=> true|false | {pass, detail}} ];
-  3-6 checks with known answers from the brief or from hand calculation (identities, limits, sums, special cases).
-  inputs override the default control values.
+CODE: plain JS, no DOM/network/randomness/imports. Define:
+function compute(p){...} // p = {control id: value}. Implement the excerpt's equation exactly; return every intermediate value shown. All numbers finite for every allowed input: handle zeros, equal values, empty sums, log 0 (0·log0=0), overflow (subtract max before exp). Never throw; if input is invalid, normalise/clip and set r.note (string).
+function render(V,p,r){...} // r = compute(p). 1-3 panels showing cause and effect, labelled axes:
+ V.bars({title,labels,values|series:[{name,values}],highlight,yLabel,xLabel,min,max,digits,refLines:[{y,label}]})
+ V.line({title,series:[{name,x,y,dashed}],points:[{x,y,label}],vlines:[{x,label}],hlines:[{y,label}],xLabel,yLabel,xmin,xmax,ymin,ymax}) // a sweep of one input with the current value marked is often clearest
+ V.heatmap({title,matrix,rowLabels,colLabels,min,max,digits})
+ V.diagram({title,width,height,items:[{type:"rect",x,y,w,h,label,sub}|{type:"circle",cx,cy,r,label}|{type:"arrow"|"line",x1,y1,x2,y2,label,width}|{type:"text",x,y,text}]})
+ V.table({title,columns,rows,digits}); V.note(html) // one line of worked arithmetic with live numbers; V.fmt(x,d)
+const checks=[{name,inputs:{control id:value},test:(r,p)=>bool}]; // 3-5 known-answer checks from the brief/theory
 
-Rules:
-- Explain only the requested concept for the stated audience; define every term before using it; be concise.
-- Scientific fidelity first: match the excerpt's notation and equation; never invent results or citations.
-- Numbers shown must come from compute(); never hard-code results in text that changes with inputs.
-- Keep default values small and readable; slider ranges must keep everything finite.
-- Explorations must use real control ids in "preset" with values of the right type and shape.
-"""
+Rules: stay on the requested focus and audience; define terms before use; match the excerpt's notation; never invent results; every number shown comes from compute(); each control must change compute() output; presets use real control ids with values of the right shape. Be concise."""
 
-SYSTEM = "You are a careful scientific explainer and front-end engineer. Follow the output contract exactly." + CONTRACT
+SYSTEM = CONTRACT
 
 
 def user_prompt(case: dict, excerpt_key, excerpt: str, excerpt_note: str) -> str:
-    lines = ["CASE"]
+    lines = []
     for k, v in case.items():
         if k == excerpt_key:
             continue
         if isinstance(v, (str, int, float)) and str(v).strip():
-            lines.append(f"{k}: {str(v).strip()}")
-    lines.append("")
+            lines.append(f"{k}: {str(v).strip()[:1500]}")
     if excerpt:
-        lines.append("SOURCE EXCERPT (ground every 'from_paper' claim in this text):")
-        lines.append(excerpt)
+        lines.append("EXCERPT (ground from_paper claims only in this):\n" + excerpt)
     else:
-        lines.append("SOURCE EXCERPT: not available (" + excerpt_note + "). Use only well-established content of the "
-                     "cited paper, keep 'from_paper' claims conservative, and mark anything uncertain under 'ours'.")
-    lines.append("")
-    lines.append("Write the SPEC and CODE now.")
+        lines.append("EXCERPT: unavailable (" + excerpt_note + "). Use only well-established content of the cited "
+                     "section; keep from_paper conservative.")
     return "\n".join(lines)
 
 
-REPAIR_SYSTEM = "You fix a generated teaching page. Follow the output contract exactly." + CONTRACT
+REPAIR_SYSTEM = ("You fix a generated teaching page made of SPEC (JSON) and CODE (JS: compute(p), render(V,p,r), "
+                 "const checks). Fix the root cause of each failure; if a check's expected value is wrong, fix the "
+                 "check, never weaken a true property. Reply with only the requested block(s) in the format "
+                 "<<<SPEC>>>json<<<CODE>>>js<<<END>>>; write UNCHANGED as the body of a block you do not change.")
 
 
-def repair_prompt(spec_text: str, code_text: str, problems: list, focus: str) -> str:
-    probs = "\n".join(f"- {p}" for p in problems[:12])
-    return (
-        f"Learning brief: {focus}\n\n"
-        "Automatic checks found these problems in the page you produced:\n"
-        f"{probs}\n\n"
-        "Current SPEC:\n" + spec_text + "\n\nCurrent CODE:\n" + code_text + "\n\n"
-        "Fix every problem. Return BOTH blocks in the same format (<<<SPEC>>> ... <<<CODE>>> ... <<<END>>>). "
-        "If a block needs no change you may write the single word UNCHANGED as its body."
-    )
+def repair_prompt(spec: dict, code_text: str, problems: list, focus: str, blocks: set) -> str:
+    probs = "\n".join(f"- {p}" for p in problems[:10])
+    s = f"Focus: {focus[:400]}\nFailed checks:\n{probs}\n"
+    if "SPEC" in blocks:
+        s += "\nSPEC:\n" + json.dumps(spec, ensure_ascii=False, separators=(",", ":")) + "\n"
+    else:
+        ctl = [{k: c.get(k) for k in ("id", "type", "value", "min", "max", "options") if k in c}
+               for c in spec.get("controls", []) if isinstance(c, dict)]
+        s += "\nControls (SPEC unchanged): " + json.dumps(ctl, separators=(",", ":"))
+        s += "\nReadout keys: " + json.dumps([r.get("key") for r in spec.get("readouts", []) if isinstance(r, dict)]) + "\n"
+    if "CODE" in blocks:
+        s += "\nCODE:\n" + code_text + "\n"
+    want = " and ".join(sorted(blocks))
+    return s + f"\nReturn the corrected {want} (full block{'s' if len(blocks) > 1 else ''}); the other block: UNCHANGED."

@@ -32,14 +32,93 @@ def parse_blocks(text: str):
 
 
 def load_spec(spec_text: str):
-    try:
-        return json.loads(spec_text), None
-    except Exception as e:
-        # common fix: trailing commas
+    t = (spec_text or "").strip()
+    i, j = t.find("{"), t.rfind("}")
+    if i > 0 or (j >= 0 and j < len(t) - 1):
+        t = t[i:j + 1] if i >= 0 and j > i else t
+    err = None
+    for cand in (t, re.sub(r",\s*([}\]])", r"\1", t), re.sub(r",\s*([}\]])", r"\1", re.sub(r"(?m)^\s*//.*$", "", t))):
         try:
-            return json.loads(re.sub(r",\s*([}\]])", r"\1", spec_text)), None
-        except Exception:
-            return None, f"SPEC is not valid JSON: {e}"
+            return json.loads(cand), None
+        except Exception as e:
+            err = err or e
+    return None, f"SPEC is not valid JSON: {err}"
+
+def autofix(spec: dict, case: dict = None):
+    """Deterministic repairs that need no model call. Mutates spec; returns a list of what was fixed."""
+    fixed = []
+    case = case or {}
+    if not str(spec.get("title", "")).strip() and case.get("focus"):
+        spec["title"] = str(case["focus"]).split(".")[0][:90]; fixed.append("title from focus")
+    for k in ("tagline", "figure_caption"):
+        if not isinstance(spec.get(k), str):
+            spec[k] = ""
+    src = spec.get("source")
+    if not isinstance(src, dict):
+        spec["source"] = src = {"paper": str(src or "")}
+    if case.get("source_url") and not src.get("url"):
+        src["url"] = str(case["source_url"])
+    sy = spec.get("symbols")
+    if isinstance(sy, dict):
+        spec["symbols"] = [{"symbol": k, "meaning": v} for k, v in sy.items()]; fixed.append("symbols dict -> list")
+    ctl = spec.get("controls") if isinstance(spec.get("controls"), list) else []
+    ids = {}
+    for c in ctl:
+        if not isinstance(c, dict):
+            continue
+        t, v = c.get("type"), c.get("value")
+        if t == "range":
+            c["type"] = t = "slider"; fixed.append(f'control {c.get("id")}: type range -> slider')
+        if t in ("slider", "number"):
+            for k in ("min", "max", "step", "value"):
+                if isinstance(c.get(k), str):
+                    try:
+                        c[k] = float(c[k])
+                    except ValueError:
+                        pass
+            lo, hi, v = c.get("min"), c.get("max"), c.get("value")
+            if _num(lo) and _num(hi) and lo > hi:
+                c["min"], c["max"] = lo, hi = hi, lo; fixed.append(f'slider {c.get("id")}: swapped min/max')
+            if _num(lo) and _num(hi) and _num(v) and not lo <= v <= hi:
+                c["value"] = min(hi, max(lo, v)); fixed.append(f'slider {c.get("id")}: default clamped into range')
+            if t == "slider" and not _num(c.get("step")) and _num(lo) and _num(hi) and hi > lo:
+                c["step"] = (hi - lo) / 100
+        elif t == "toggle" and not isinstance(v, bool):
+            c["value"] = bool(v) and v not in ("false", "0", 0); fixed.append(f'toggle {c.get("id")}: value -> bool')
+        elif t == "select" and isinstance(c.get("options"), list):
+            opts = [o if isinstance(o, dict) else {"value": o, "label": str(o)} for o in c["options"]]
+            c["options"] = opts
+            if opts and v not in [o.get("value") for o in opts]:
+                c["value"] = opts[0].get("value"); fixed.append(f'select {c.get("id")}: default -> first option')
+        ids[c.get("id")] = c
+    ex = spec.get("explorations")
+    if isinstance(ex, list):
+        if len(ex) > 2:
+            spec["explorations"] = ex = ex[:2]; fixed.append("kept first 2 explorations")
+        for e in ex:
+            if isinstance(e, dict) and isinstance(e.get("preset"), dict):
+                bad = [k for k in e["preset"] if k not in ids]
+                for k in bad:
+                    del e["preset"][k]
+                if bad:
+                    fixed.append(f"dropped unknown preset keys {bad}")
+                for k, val in list(e["preset"].items()):
+                    c = ids[k]
+                    if c.get("type") == "slider" and _num(val) and _num(c.get("min")) and _num(c.get("max")):
+                        nv = min(c["max"], max(c["min"], val))
+                        if nv != val:
+                            e["preset"][k] = nv; fixed.append(f"preset {k} clamped into range")
+    lim = spec.get("limitation")
+    if isinstance(lim, str) and lim.strip():
+        spec["limitation"] = {"kind": "Limitation", "text": lim}; fixed.append("limitation string -> object")
+    elif isinstance(lim, dict) and lim.get("text") and not lim.get("kind"):
+        lim["kind"] = "Limitation"
+    gr = spec.get("grounding")
+    if isinstance(gr, dict):
+        for a, b in (("from_excerpt", "from_paper"), ("paper", "from_paper"), ("our", "ours"), ("simplifications", "ours")):
+            if b not in gr and a in gr:
+                gr[b] = gr.pop(a); fixed.append(f"grounding.{a} -> {b}")
+    return fixed
 
 
 def _num(x):
@@ -174,16 +253,21 @@ def run_js(spec: dict, code: str, timeout_s: float = 8.0):
         return rep
 
 
-def evaluate(spec_text: str, code_text: str):
-    """Full check. Returns dict with critical/major/minor lists, stats, parsed spec."""
-    res = {"critical": [], "major": [], "minor": [], "stats": {}, "spec": None}
-    spec, err = load_spec(spec_text or "")
+def evaluate(spec_in, code_text: str, case: dict = None):
+    """Full check. spec_in is SPEC text or an already-parsed dict. Returns dict with critical/major/minor lists,
+    stats, the parsed (auto-fixed) spec and the list of deterministic fixes applied."""
+    res = {"critical": [], "major": [], "minor": [], "stats": {}, "spec": None, "fixes": []}
+    if isinstance(spec_in, dict):
+        spec, err = json.loads(json.dumps(spec_in)), None
+    else:
+        spec, err = load_spec(spec_in or "")
     if err:
         res["critical"].append(err)
         return res
     if not isinstance(spec, dict):
         res["critical"].append("SPEC must be a JSON object")
         return res
+    res["fixes"] = autofix(spec, case)
     res["spec"] = spec
     c, m, n = validate_spec(spec)
     res["critical"] += c; res["major"] += m; res["minor"] += n
@@ -201,15 +285,33 @@ def evaluate(spec_text: str, code_text: str):
         for k in ("critical", "major", "minor"):
             res[k] += js.get(k, [])
         res["stats"] = js.get("stats", {})
-    # de-duplicate while keeping order
+        # deterministic fix: drop readouts whose key compute() does not return (no model call needed)
+        missing = set(js.get("missing_readouts") or [])
+        if missing and len(missing) < len(spec.get("readouts") or []):
+            spec["readouts"] = [r for r in spec["readouts"] if not (isinstance(r, dict) and r.get("key") in missing)]
+            res["major"] = [x for x in res["major"] if not x.startswith("readout key ")]
+            res["fixes"].append(f"dropped readouts not returned by compute(): {sorted(missing)}")
+    # de-duplicate while keeping order; collapse the same failure seen on many test inputs
     for k in ("critical", "major", "minor"):
-        seen, out = set(), []
+        seen, out = {}, []
         for x in res[k]:
-            if x not in seen:
-                seen.add(x); out.append(x)
+            key = re.sub(r" on (control|random|experiment|default)[^:]*", "", x)
+            if key not in seen:
+                seen[key] = 1; out.append(x)
         res[k] = out
     return res
 
+
+def blocks_to_fix(problems):
+    """Which block(s) a repair must return: SPEC, CODE or both."""
+    need = set()
+    for p in problems:
+        if p.startswith(("SPEC", "control ", "slider", "select", "toggle", "vector", "matrix", "number control",
+                         "duplicate control", "exploration")) or "preset uses unknown" in p:
+            need.add("SPEC")
+        else:
+            need.add("CODE")
+    return need or {"SPEC", "CODE"}
 
 def score(res) -> int:
     return 100 * len(res["critical"]) + 10 * len(res["major"]) + len(res["minor"])

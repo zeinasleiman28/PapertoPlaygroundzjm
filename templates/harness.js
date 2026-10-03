@@ -59,6 +59,21 @@ function __run(spec) {
     }
   });
 
+  var seed = 12345; function rnd() { seed = (1664525 * seed + 1013904223) >>> 0; return seed / 4294967296; }
+  for (var k = 0; k < 4; k++) {
+    var rp = merged(null);
+    C.forEach(function (c) {
+      var lo = typeof c.min === 'number' ? c.min : 0, hi = typeof c.max === 'number' ? c.max : (lo + 1), st = c.step || 0;
+      function rv() { var v = lo + rnd() * (hi - lo); return st ? Math.min(hi, Math.max(lo, Math.round(v / st) * st)) : v; }
+      if (c.type === 'slider') rp[c.id] = rv();
+      else if (c.type === 'toggle') rp[c.id] = rnd() < 0.5;
+      else if (c.type === 'select' && (c.options || []).length) rp[c.id] = c.options[Math.floor(rnd() * c.options.length)].value;
+      else if (c.type === 'vector' && Array.isArray(rp[c.id])) rp[c.id] = rp[c.id].map(rv);
+      else if (c.type === 'matrix' && Array.isArray(rp[c.id])) rp[c.id] = rp[c.id].map(function (r) { return r.map(rv); });
+    });
+    cases.push({ label: 'random inputs #' + (k + 1) + ' ' + JSON.stringify(rp).slice(0, 120), p: rp, kind: 'edge' });
+  }
+
   var defaultPanels = 0;
   cases.forEach(function (cs) {
     var bucket = cs.kind === 'edge' ? rep.major : rep.critical;
@@ -69,7 +84,8 @@ function __run(spec) {
     var nf = []; __nonFinite(r, 'r', nf);
     if (nf.length) rep.major.push('compute() returned non-finite numbers on ' + cs.label + ': ' + nf.join(', '));
     if (cs.kind === 'default') {
-      (spec.readouts || []).forEach(function (ro) { if (!(ro.key in r)) rep.major.push('readout key "' + ro.key + '" is not returned by compute()'); });
+      rep.missing_readouts = [];
+      (spec.readouts || []).forEach(function (ro) { if (!(ro.key in r)) { rep.missing_readouts.push(ro.key); rep.major.push('readout key "' + ro.key + '" is not returned by compute()'); } });
     }
     __issues = [];
     var root = new __El('div');
@@ -83,6 +99,23 @@ function __run(spec) {
   if (defaultPanels < 1) rep.critical.push('render() drew nothing with default inputs');
   rep.stats.panels = defaultPanels;
   rep.stats.cases = cases.length;
+
+  // every control must change compute() output (a control that does nothing is not a meaningful control)
+  var base = null; try { base = JSON.stringify(compute(merged(null))); } catch (e) {}
+  if (base !== null) C.forEach(function (c) {
+    var v = c.value, cands = [];
+    if (c.type === 'slider' || c.type === 'number') cands = [c.min, c.max, typeof v === 'number' ? v + (c.step || 1) : undefined];
+    else if (c.type === 'toggle') cands = [!v];
+    else if (c.type === 'select') cands = (c.options || []).map(function (o) { return o.value; });
+    else if (c.type === 'vector' && Array.isArray(v)) cands = [v.map(function (x, i) { return i === 0 ? x + 1 : x; }), v.map(function (x, i) { return i === v.length - 1 ? x - 1 : x; })];
+    else if (c.type === 'matrix' && Array.isArray(v)) cands = [v.map(function (r, i) { return r.map(function (x, j) { return i === 0 && j === 0 ? x + 1 : x; }); })];
+    var moved = cands.some(function (x) {
+      if (x === undefined || JSON.stringify(x) === JSON.stringify(v)) return false;
+      var o = {}; o[c.id] = x;
+      try { return JSON.stringify(compute(merged(o))) !== base; } catch (e) { return true; }
+    });
+    if (!moved) rep.major.push('compute() ignores control "' + c.id + '": changing it does not change any output, so it is not a meaningful control');
+  });
 
   var list = (typeof checks !== 'undefined' && Array.isArray(checks)) ? checks : null;
   if (!list) rep.major.push('CODE does not define const checks = [...]');
