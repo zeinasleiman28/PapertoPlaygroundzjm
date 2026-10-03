@@ -72,8 +72,11 @@ var PG = (function () {
   function tone(t, dflt) { return TONES[t] ? t : (dflt || 'accent'); }
   var CYCLE = ['accent', 'ours', 'alt', 'muted'];
 
-  function makeV(container) {
-    var V = {}, uid = 0;
+  var PREV = {};  // last drawn values per panel, so the page can outline the state before the latest change
+  function makeV(container, opts) {
+    var V = {}, uid = 0, ghost = !!(opts && opts.ghost);
+    function prevOf(key, now) { var p = ghost ? PREV[key] : undefined; if (ghost) PREV[key] = JSON.parse(JSON.stringify(now)); return p; }
+    function same(a, b) { return JSON.stringify(a) === JSON.stringify(b); }
     function panel(title) {
       var f = h('figure', { 'class': 'pg-panel' }, container);
       if (title) { var c = h('div', { 'class': 'pg-panel-title' }, f); c.innerHTML = lite(title); }
@@ -136,6 +139,15 @@ var PG = (function () {
         s('line', { x1: x0, x2: x1, y1: r2(Y(r.y)), y2: r2(Y(r.y)), 'class': 'pg-ref' }, g);
         if (r.label) txt(g, x1 - 4, Y(r.y) - 5, r.label, 'pg-reflabel', 'end');
       });
+      var pv = prevOf('bars:' + (o.title || ''), { labels: o.labels, series: series.map(function (sr) { return sr.values; }) });
+      if (pv && same(pv.labels, o.labels) && pv.series.length === series.length && !same(pv.series, series.map(function (sr) { return sr.values; }))) {
+        for (var gi = 0; gi < n; gi++) series.forEach(function (sr, k) {
+          var ov = pv.series[k][gi]; if (!isNum(ov) || ov === sr.values[gi]) return;
+          var bx = x0 + gw * (gi + 0.5) - bw * series.length / 2 + bw * k, top = Math.min(Y(ov), Y(0));
+          s('rect', { x: r2(bx + 1), y: r2(top), width: r2(Math.max(1, bw - 2)), height: r2(Math.max(0.5, Math.abs(Y(ov) - Y(0)))), 'class': 'pg-ghost' }, g);
+        });
+        txt(g, x1, H - 3, '- - - dashed: before your last change', 'pg-legend', 'end');
+      }
       if (series.length > 1) legend(g, series.map(function (sr, k) { return { name: sr.name, t: tone(sr.tone, CYCLE[k % 4]) }; }), x0 + 6, y0 + 4);
       return f;
     };
@@ -192,6 +204,18 @@ var PG = (function () {
       var okX = function (v) { return !lx || v > 0; }, okY = function (v) { return !ly || v > 0; };
       (o.hlines || []).filter(function (v) { return okY(v.y); }).forEach(function (v) { s('line', { x1: x0, x2: x1, y1: r2(Y(v.y)), y2: r2(Y(v.y)), 'class': 'pg-ref' }, pg); if (v.label) txt(g, x1 - 4, Y(v.y) - 5, v.label, 'pg-reflabel', 'end'); });
       (o.vlines || []).filter(function (v) { return okX(v.x); }).forEach(function (v) { s('line', { x1: r2(X(v.x)), x2: r2(X(v.x)), y1: y0, y2: y1, 'class': 'pg-ref' }, pg); if (v.label) txt(g, X(v.x) + 4, y0 + 12, v.label, 'pg-reflabel', 'start'); });
+      var pl = prevOf('line:' + (o.title || ''), o.series.map(function (sr) { return { x: sr.x, y: sr.y }; }));
+      if (pl && pl.length === o.series.length && !same(pl, o.series.map(function (sr) { return { x: sr.x, y: sr.y }; }))) {
+        pl.forEach(function (ps, k) {
+          var d0 = '', pen0 = 'M';
+          for (var i = 0; i < ps.x.length; i++) {
+            if (!isNum(ps.x[i]) || !isNum(ps.y[i]) || (lx && !(ps.x[i] > 0)) || (ly && !(ps.y[i] > 0))) { pen0 = 'M'; continue; }
+            d0 += pen0 + r2(X(ps.x[i])) + ' ' + r2(Math.max(y0 - 4, Math.min(y1 + 4, Y(ps.y[i])))); pen0 = 'L';
+          }
+          if (d0) s('path', { d: d0, 'class': 'pg-ghost-line pg-stroke-' + tone(o.series[k].tone, CYCLE[k % 4]) }, pg);
+        });
+        txt(g, x1, H - 3, '- - - dashed: before your last change', 'pg-legend', 'end');
+      }
       o.series.forEach(function (sr, k) {
         var d = '';
         var pen = 'M';
@@ -221,6 +245,8 @@ var PG = (function () {
       var W = ml + C * cell + 10, H = mt + R * cell + 10;
       var f = panel(o.title), svg = svgBox(f, W, H, o.title), g = s('g', {}, svg);
       var hls = (o.highlight || []).map(function (p) { return p[0] + ',' + p[1]; });
+      var hp = prevOf('heat:' + (o.title || ''), o.matrix);
+      if (hp && (hp.length !== R || !same(hp.map(function (r) { return r.length; }), o.matrix.map(function (r) { return r.length; })))) hp = null;
       for (var i = 0; i < R; i++) {
         txt(g, ml - 8, mt + i * cell + cell / 2 + 4, o.rowLabels && o.rowLabels[i] !== undefined ? o.rowLabels[i] : 'row ' + (i + 1), 'pg-tick', 'end');
         for (var j = 0; j < C; j++) {
@@ -229,6 +255,7 @@ var PG = (function () {
           else { t = 'accent'; a = (v - lo) / ((hi - lo) || 1); }
           a = Math.max(0.06, Math.min(1, a));
           s('rect', { x: ml + j * cell + 1, y: mt + i * cell + 1, width: cell - 2, height: cell - 2, 'class': 'pg-fill-' + t, 'fill-opacity': r2(a) }, g);
+          if (hp && hp[i] && isNum(hp[i][j]) && Math.abs(hp[i][j] - v) > 1e-12) s('rect', { x: ml + j * cell + 2, y: mt + i * cell + 2, width: cell - 4, height: cell - 4, 'class': 'pg-ghost' }, g);
           if (hls.indexOf(i + ',' + j) >= 0) s('rect', { x: ml + j * cell + 1, y: mt + i * cell + 1, width: cell - 2, height: cell - 2, 'class': 'pg-hl' }, g);
           if (o.showValues !== false && cell >= 30) txt(g, ml + j * cell + cell / 2, mt + i * cell + cell / 2 + 4, fmt(v, o.digits), a > 0.55 ? 'pg-val pg-val-inv' : 'pg-val');
         }

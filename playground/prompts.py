@@ -10,8 +10,9 @@ function compute(p){...}
 <<<END>>>
 
 SPEC (text may use <sub><sup><b><i><code><br> and Unicode math):
-{"title","tagline":one sentence,
-"source":{"paper","authors","url","section","equation"},
+{"brief":[...] FIRST: one item per requirement in the focus (each thing to explain, let the learner change or switch, show, guide through, check, handle), mapped to what implements it, e.g. [{"req":"let the learner change x","control":"x"},{"req":"show y","output":"y"},{"req":"guide through case A","exploration":1},{"req":"check that P","check":"P holds"}],
+"title","tagline":one sentence,
+"source":{"paper","authors","url","section","equation"} section/equation written exactly as in the excerpt or focus,
 "idea":2-4 sentences for the audience,"why":1-2 sentences,
 "formula":the excerpt's key equation, same notation,
 "symbols":[{"symbol","meaning"}] every symbol in formula, controls and figure,
@@ -20,11 +21,11 @@ SPEC (text may use <sub><sup><b><i><code><br> and Unicode math):
 "figure_caption":how to read the figure,
 "explorations":exactly 2 {"title","preset":{control id:value} that creates exactly the situation in the title,"change","observe":what the learner will see; write every computed number as a placeholder {r.key}, {r.key[i]} or {r.key:2} (filled live from compute() at the preset), never typed by hand,"why":the cause},
 "limitation":{"kind":"Limitation"|"Assumption"|"Common misunderstanding","text"},
-"grounding":{"from_paper":[{"claim","where"}] 2-4, only what the excerpt states,"ours":[2-4 strings: toy values, simplifications]}}
+"grounding":{"from_paper":[{"claim","where"}] 2-4, only what the excerpt states, keeping its hedging ("the authors suspect"), "where" as numbered in the excerpt,"ours":[2-4 strings: all toy numbers, simplifications, anything not in the excerpt]}}
 
 CODE: plain JS, no DOM/network/randomness/imports. Define:
 function compute(p){...} // p = {control id: value}. Implement the excerpt's equation exactly; return every intermediate value shown. All numbers finite for every allowed input: handle zeros, equal values, empty sums, log 0 (0·log0=0), overflow (subtract max before exp). Never throw; if input is invalid, normalise/clip and set r.note (string).
-function render(V,p,r){...} // r = compute(p). 1-3 panels showing cause and effect, labelled axes:
+function render(V,p,r){...} // r = compute(p). 2-3 panels: first the mechanism's steps with live numbers (V.table of intermediate values or V.diagram, plus V.note), then the cause-and-effect chart(s), labelled axes:
  V.bars({title,labels,values|series:[{name,values}],highlight,yLabel,xLabel,min,max,digits,refLines:[{y,label}]})
  V.line({title,series:[{name,x,y,dashed}],points:[{x,y,label}],vlines:[{x,label}],hlines:[{y,label}],xLabel,yLabel,xmin,xmax,ymin,ymax,xLog,yLog}) // a sweep of one input with the current value marked is often clearest
  V.heatmap({title,matrix,rowLabels,colLabels,min,max,digits})

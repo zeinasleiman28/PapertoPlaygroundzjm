@@ -53,9 +53,15 @@ def summarize(res):
 
 def log_checks(trace, stage, res, attempt):
     st = res.get("stats", {})
+    b = st.get("brief")
+    if b is not None:
+        trace.event(stage, "brief_coverage", "pass" if not b.get("missing") else "fail", attempt=attempt,
+                    requirements=b.get("items"), covered=b.get("covered"), missing=b.get("missing") or None,
+                    coverage_pct=round(100 * b.get("covered", 0) / b["items"]) if b.get("items") else 0)
     trace.event(stage, "run_checks", "pass" if not res["critical"] and not res["major"] else "fail",
                 attempt=attempt, **summarize(res), problems=(res["critical"] + res["major"] + res["minor"])[:15],
                 auto_fixes=res.get("fixes") or None,
+                checks=res.get("summary"),
                 cases_exercised=st.get("cases"), figure_panels=st.get("panels"),
                 self_checks=f'{st.get("checks_passed")}/{st.get("checks_total")}' if "checks_total" in st else None,
                 self_check_results=st.get("check_results"))
@@ -123,7 +129,7 @@ def main() -> int:
         spec_text, code_text = CK.parse_blocks(raw)
         trace.event("generate", "parse_output", "ok" if spec_text and code_text else "error",
                     spec_chars=len(spec_text or ""), code_chars=len(code_text or ""))
-        res = CK.evaluate(spec_text, code_text, case)
+        res = CK.evaluate(spec_text, code_text, case, excerpt)
         log_checks(trace, "verify", res, 0)
         consider(spec_text, code_text, res)
 
@@ -151,12 +157,15 @@ def main() -> int:
                 want = {"CHECKS"} if CK.only_self_checks(problems) else CK.blocks_to_fix(problems)
                 checks_repaired = checks_repaired or want == {"CHECKS"}
                 trace.event("revise", "request_repair", "started", attempt=attempt, n_problems=len(problems),
-                            blocks=sorted(want))
+                            blocks=sorted(want), reasons=[p[:160] for p in problems[:6]])
                 raw = llm.chat(REPAIR_SYSTEM, repair_prompt(r["spec"], c_txt, problems, focus, want),
                                REPAIR_MAX_TOKENS, "revise")
                 s_txt = r["spec"]  # carry deterministic fixes forward
             ns, nc = CK.parse_blocks(raw)
             mc = re.search(r"<<<CHECKS>>>\s*(.*?)\s*(?:<<<END>>>|$)", raw, re.S)
+            trace.event("revise", "parse_reply", "ok", attempt=attempt,
+                        returned=[b for b, v in (("SPEC", ns), ("CODE", nc), ("CHECKS", mc)) if v is not None and
+                                  (not isinstance(v, str) or v.strip().upper() != "UNCHANGED")])
             if mc and nc is None and c_txt:  # checks-only reply: splice it into the current code
                 spliced = CK.splice_checks(c_txt, re.sub(r"^```\w*\s*|\s*```$", "", mc.group(1).strip()))
                 trace.event("revise", "splice_checks", "ok" if spliced else "failed")
@@ -165,7 +174,7 @@ def main() -> int:
                 ns, nc = (raw, None) if raw.lstrip().startswith("{") else (None, raw)
             ns = s_txt if (ns is None or ns.strip().upper() == "UNCHANGED") else ns
             nc = c_txt if (nc is None or nc.strip().upper() == "UNCHANGED") else nc
-            res = CK.evaluate(ns, nc, case)
+            res = CK.evaluate(ns, nc, case, excerpt)
             log_checks(trace, "verify", res, attempt)
             prev = best[0]
             consider(ns, nc, res)

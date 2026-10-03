@@ -18,10 +18,11 @@ def parse_blocks(text: str):
     """Return (spec_text, code_text); either may be None. 'UNCHANGED' is passed through."""
     text = text.replace("\r\n", "\n")
     spec = code = None
-    m = re.search(r"<<<SPEC>>>\s*(.*?)\s*<<<CODE>>>", text, re.S)
+    # each block ends at the next marker or the end of the reply (a repair may return only one block)
+    m = re.search(r"<<<SPEC>>>\s*(.*?)\s*(?:<<<CODE>>>|<<<CHECKS>>>|<<<END>>>|$)", text, re.S)
     if m:
         spec = m.group(1)
-    m = re.search(r"<<<CODE>>>\s*(.*?)\s*(?:<<<END>>>|$)", text, re.S)
+    m = re.search(r"<<<CODE>>>\s*(.*?)\s*(?:<<<SPEC>>>|<<<CHECKS>>>|<<<END>>>|$)", text, re.S)
     if m:
         code = m.group(1)
     if spec is not None:
@@ -59,6 +60,25 @@ def autofix(spec: dict, case: dict = None):
         spec["source"] = src = {"paper": str(src or "")}
     if case.get("source_url") and not src.get("url"):
         src["url"] = str(case["source_url"])
+    if not isinstance(spec.get("brief"), list):
+        for alt in ("brief_requirements", "requirements", "brief_map", "brief_coverage", "coverage"):
+            if isinstance(spec.get(alt), list):
+                spec["brief"] = spec.pop(alt); fixed.append(f"{alt} -> brief"); break
+    if isinstance(spec.get("brief"), list):
+        conv = []
+        for b in spec["brief"]:
+            if isinstance(b, str):  # "req -> control: x, check: y" style strings
+                item = {"req": re.split(r"\s*(?:->|=>|:)\s*", b, 1)[0][:120]}
+                for k in ("control", "output", "exploration", "check"):
+                    mm = re.search(k + r"s?\s*[:=]\s*\"?([^,;\"\)]+)", b, re.I)
+                    if mm:
+                        item[k] = mm.group(1).strip()
+                conv.append(item)
+            else:
+                conv.append(b)
+        if any(isinstance(b, str) for b in spec["brief"]):
+            fixed.append("brief strings -> objects")
+        spec["brief"] = conv
     sy = spec.get("symbols")
     if isinstance(sy, dict):
         spec["symbols"] = [{"symbol": k, "meaning": v} for k, v in sy.items()]; fixed.append("symbols dict -> list")
@@ -259,7 +279,60 @@ def run_js(spec: dict, code: str, timeout_s: float = 8.0):
         return rep
 
 
-def evaluate(spec_in, code_text: str, case: dict = None):
+def grounding_checks(spec: dict, case: dict, source_text: str):
+    """Cheap fidelity checks: cited numbers must exist in the source, and the focus's explicit asks must be mapped."""
+    major = []
+    focus = str((case or {}).get("focus", ""))
+    hay = " ".join([source_text or ""] + [str(v) for v in (case or {}).values() if isinstance(v, str)])
+    if (source_text or "").strip():  # without an excerpt there is nothing to verify citations against
+        src = spec.get("source") or {}
+        fields = [("source.section", src.get("section")), ("source.equation", src.get("equation"))]
+        gr = spec.get("grounding") or {}
+        for g in gr.get("from_paper") or []:
+            if isinstance(g, dict):
+                fields.append(("grounding where", g.get("where")))
+        bad = []
+        for name, val in fields:
+            for tok in re.findall(r"\d+(?:\.\d+)+|(?<=\()\d+(?=\))|(?<=Eq\. )\d+|(?<=Equation )\d+|(?<=Section )\d+", str(val or "")):
+                if not re.search(r"(?<![\d.])" + re.escape(tok) + r"(?![\d])", hay):
+                    bad.append(f"{name} '{val}' ({tok})")
+        if bad:
+            major.append("SPEC cites numbers not found in the excerpt or focus: " + "; ".join(sorted(set(bad))[:4]) +
+                         ". Cite section/equation numbers exactly as written there, or omit the number.")
+    brief = [b for b in spec.get("brief") or [] if isinstance(b, dict)]
+    if brief and focus:
+        f = focus.lower()
+        if re.search(r"\bcheck\b|\bverify\b|\bconfirm\b", f) and not any(b.get("check") for b in brief):
+            major.append('the focus asks for checks ("Check that ...") but no SPEC.brief item maps to a check')
+        if re.search(r"\bguide\b|\bwalk (them|the learner) through\b", f) and not any(b.get("exploration") for b in brief):
+            major.append('the focus asks to guide the learner but no SPEC.brief item maps to an exploration')
+        if re.search(r"on/off|switch\w* .{0,40}\b(on|off)\b|\btoggle\b", f) and not any(
+                isinstance(c, dict) and c.get("type") in ("toggle", "select") for c in spec.get("controls") or []):
+            major.append("the focus asks for something to be switched on/off but there is no toggle control")
+    return major
+
+
+def summarize_checks(res: dict) -> dict:
+    """Named check groups with pass/fail, for a readable trace."""
+    st, probs = res.get("stats", {}), res["critical"] + res["major"]
+    def n(*keys):
+        return sum(1 for p in probs if any(k in p for k in keys))
+    out = {
+        "spec_schema": "pass" if not n("SPEC field", "SPEC needs", "SPEC \"", "control ", "slider", "select", "exploration ") else "fail",
+        "code_safety": "pass" if not n("CODE must not", "CODE must define", "CODE does not run") else "fail",
+        "runs_on_all_test_inputs": f'{st.get("cases", 0)} input states, ' + ("pass" if not n("threw", "NaN", "invalid coordinates", "drew nothing") else "fail"),
+        "controls_effective": f'{st.get("controls_effective", 0)}/{st.get("controls_total", 0)}',
+        "self_tests": f'{st.get("checks_passed", 0)}/{st.get("checks_total", 0)}',
+        "live_numbers_resolve": "pass" if not n("placeholder") else "fail",
+        "citations_in_source": "pass" if not n("SPEC cites numbers") else "fail",
+    }
+    b = st.get("brief")
+    if b:
+        out["brief_coverage"] = f'{b.get("covered", 0)}/{b.get("items", 0)}'
+    return out
+
+
+def evaluate(spec_in, code_text: str, case: dict = None, source_text: str = ""):
     """Full check. spec_in is SPEC text or an already-parsed dict. Returns dict with critical/major/minor lists,
     stats, the parsed (auto-fixed) spec and the list of deterministic fixes applied."""
     res = {"critical": [], "major": [], "minor": [], "stats": {}, "spec": None, "fixes": []}
@@ -277,6 +350,7 @@ def evaluate(spec_in, code_text: str, case: dict = None):
     res["spec"] = spec
     c, m, n = validate_spec(spec)
     res["critical"] += c; res["major"] += m; res["minor"] += n
+    res["major"] += grounding_checks(spec, case, source_text)
     if not code_text:
         res["critical"].append("CODE block is missing")
         return res
@@ -297,6 +371,7 @@ def evaluate(spec_in, code_text: str, case: dict = None):
             spec["readouts"] = [r for r in spec["readouts"] if not (isinstance(r, dict) and r.get("key") in missing)]
             res["major"] = [x for x in res["major"] if not x.startswith("readout key ")]
             res["fixes"].append(f"dropped readouts not returned by compute(): {sorted(missing)}")
+    res["summary"] = summarize_checks(res)
     # de-duplicate while keeping order; collapse the same failure seen on many test inputs
     for k in ("critical", "major", "minor"):
         seen, out = {}, []
@@ -314,6 +389,8 @@ def blocks_to_fix(problems):
     for p in problems:
         if "has no effect" in p:
             need.add("CODE")
+        elif p.startswith(("brief requirement", "the focus asks")):
+            need.update({"SPEC", "CODE"})
         elif p.startswith(("SPEC", "control ", "slider", "select", "toggle", "vector", "matrix", "number control",
                          "duplicate control", "exploration")) or "preset uses unknown" in p:
             need.add("SPEC")

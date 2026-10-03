@@ -132,6 +132,7 @@ function __run(spec) {
   function __ser(n) { return n.tagName + JSON.stringify(n.attrs) + n.textContent + n._html + '[' + n.children.map(__ser).join(',') + ']'; }
   function __sig(p) { var r = compute(__clone(p)), root = new __El('div'); try { render(PG.makeV(root), __clone(p), r); } catch (e) {} return JSON.stringify(r) + __ser(root); }
   // a control is dead only if it has no effect from EVERY starting state (default, presets, random states)
+  rep.stats.controls_total = C.length; rep.stats.controls_effective = 0;
   var bases = cases.filter(function (cs) { return cs.kind !== 'edge' || /^random/.test(cs.label); }).map(function (cs) { return cs.p; });
   C.forEach(function (c) {
     var moved = bases.some(function (b) {
@@ -148,6 +149,7 @@ function __run(spec) {
         try { return __sig(n) !== sb; } catch (e) { return true; }
       });
     });
+    if (moved) rep.stats.controls_effective = (rep.stats.controls_effective || 0) + 1;
     if (!moved) rep.major.push('control "' + c.id + '" has no effect: changing it changes neither compute() output nor the figure');
   });
 
@@ -168,5 +170,35 @@ function __run(spec) {
     });
     rep.stats.checks_passed = passed; rep.stats.checks_total = list.length; rep.stats.check_results = results;
   }
+  // brief coverage: every requirement the model listed must map to something that really exists
+  var brief = Array.isArray(spec.brief) ? spec.brief : [], r0 = null;
+  try { r0 = compute(merged(null)); } catch (e) {}
+  var cnames = (list || []).map(function (c) { return String(c.name || '').toLowerCase(); }), ids = C.map(function (c) { return c.id; });
+  var nexp = (spec.explorations || []).length, covered = 0, missing = [];
+  // lenient matching: the model often lists several ids or paraphrases a check name; only items that point at
+  // nothing real count as uncovered
+  var STOP = { the: 1, and: 1, that: 1, with: 1, for: 1, when: 1, gives: 1, give: 1, equals: 1, equal: 1, check: 1, show: 1, from: 1, into: 1, are: 1, is: 1, of: 1, to: 1, at: 1, in: 1, on: 1, a: 1, an: 1 };
+  function toks(x, min) { return String(x || '').toLowerCase().split(/[^a-z0-9_]+/).filter(function (t) { return t.length >= (min || 2) && !STOP[t]; }); }
+  var keys = {}; if (r0) Object.keys(r0).forEach(function (k) { keys[k.toLowerCase()] = 1; });
+  (spec.readouts || []).forEach(function (ro) { if (ro && ro.key) keys[String(ro.key).toLowerCase()] = 1; });
+  ['figure', 'chart', 'plot', 'panel', 'panels', 'readout', 'readouts', 'table', 'note', 'diagram', 'render', 'visual', 'curve', 'bars', 'heatmap'].forEach(function (k) { keys[k] = 1; });
+  var idset = {}; ids.forEach(function (i) { idset[String(i).toLowerCase()] = 1; });
+  var ctoks = cnames.map(toks);
+  brief.forEach(function (b) {
+    if (!b || typeof b !== 'object') return;
+    var ok = [], bad = [];
+    if (b.control !== undefined && b.control !== null && b.control !== '') (toks(b.control, 1).some(function (t) { return idset[t]; }) ? ok : bad).push('control ' + b.control);
+    if (b.output) (toks(String(b.output).replace(/\br\./g, ''), 1).some(function (t) { return keys[t] || Object.keys(keys).some(function (k) { return k.length >= 4 && t.indexOf(k) >= 0; }); }) ? ok : bad).push('output ' + b.output);
+    if (b.exploration !== undefined && b.exploration !== null && b.exploration !== '') { var k = parseInt(b.exploration, 10); (k >= 1 && k <= nexp ? ok : bad).push('exploration ' + b.exploration); }
+    if (b.check) {
+      var bt = toks(b.check + ' ' + (b.req || ''));
+      (ctoks.some(function (ct) { return ct.some(function (t) { return t.length >= 3 && bt.indexOf(t) >= 0; }); }) ? ok : bad).push('check "' + b.check + '"');
+    }
+    if (ok.length) covered++;
+    else missing.push('"' + (b.req || '?') + '"' + (bad.length ? ' (mapped to ' + bad.join(', ') + ', which does not exist)' : ' (not mapped to any control, output, exploration or check)'));
+  });
+  rep.stats.brief = { items: brief.length, covered: covered, missing: missing };
+  if (!brief.length) rep.major.push('SPEC "brief" is missing: list every requirement of the focus and map each to a control, output, exploration or check');
+  missing.forEach(function (m) { rep.major.push('brief requirement ' + m + ' is not covered'); });
   return JSON.stringify(rep);
 }

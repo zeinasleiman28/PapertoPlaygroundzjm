@@ -153,21 +153,28 @@
   }
 
   /* ---------- readouts ---------- */
+  var prevR = null;  // readouts from before the latest change
+  function differs(a, b) { return typeof a === 'number' && typeof b === 'number' && isFinite(a) && isFinite(b) && Math.abs(a - b) > 1e-12 * Math.max(1, Math.abs(a), Math.abs(b)); }
   function readouts(r) {
     var box = $('pg-readouts'); box.innerHTML = '';
+    var pr = prevR; prevR = r ? clone(r) : null;
     (SPEC.readouts || []).forEach(function (ro) {
       var v = r ? r[ro.key] : undefined, d = h('div', { 'class': 'pg-ro' }, box);
       h('div', { 'class': 'pg-ro-label' }, d, lite(ro.label));
       var val = h('div', { 'class': 'pg-ro-val' }, d), digits = typeof ro.digits === 'number' ? ro.digits : undefined;
       if (Array.isArray(v) && Array.isArray(v[0])) {
         var t = h('table', { 'class': 'pg-mini' }, h('div', { 'class': 'pg-scroll' }, val));
-        v.forEach(function (row) { var tr = h('tr', {}, t); row.forEach(function (x) { h('td', {}, tr, lite(fmt(x, digits))); }); });
+        var pm = pr && Array.isArray(pr[ro.key]) ? pr[ro.key] : null;
+        v.forEach(function (row, i) { var tr = h('tr', {}, t); row.forEach(function (x, j) { h('td', pm && pm[i] && differs(x, pm[i][j]) ? { 'class': 'pg-chg', title: 'was ' + fmt(pm[i][j], digits) } : {}, tr, lite(fmt(x, digits))); }); });
         d.classList.add('pg-ro-wide');
       } else if (Array.isArray(v)) {
-        val.innerHTML = '[ ' + v.map(function (x) { return lite(fmt(x, digits)); }).join(', ') + ' ]';
+        var pa = pr && Array.isArray(pr[ro.key]) ? pr[ro.key] : null;
+        val.innerHTML = '[ ' + v.map(function (x, i) { var c = pa && differs(x, pa[i]); return (c ? '<span class="pg-chg" title="was ' + fmt(pa[i], digits) + '">' : '') + lite(fmt(x, digits)) + (c ? '</span>' : ''); }).join(', ') + ' ]';
         if (v.length > 4) d.classList.add('pg-ro-wide');
       } else {
         val.innerHTML = lite(fmt(v, digits)) + (ro.unit ? ' <span class="pg-unit">' + lite(ro.unit) + '</span>' : '');
+        var pv = pr ? pr[ro.key] : undefined;
+        if (differs(v, pv)) val.innerHTML += ' <span class="pg-was"><span class="' + (v > pv ? 'pg-up">▲' : 'pg-down">▼') + '</span> was ' + lite(fmt(pv, digits)) + '</span>';
       }
     });
     if (r && typeof r.note === 'string' && r.note) { var n = h('div', { 'class': 'pg-ro pg-ro-wide pg-ro-note' }, box); n.innerHTML = lite(r.note); }
@@ -182,7 +189,7 @@
     try { r = compute(clone(state)); }
     catch (e) { errBox('The calculation could not run for these inputs: ' + e.message); readouts(null); return; }
     readouts(r);
-    try { render(PG.makeV(f), clone(state), r); }
+    try { render(PG.makeV(f, { ghost: true }), clone(state), r); }
     catch (e) { errBox('The figure could not be drawn for these inputs: ' + e.message); }
   }
 
