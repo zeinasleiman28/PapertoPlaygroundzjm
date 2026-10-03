@@ -51,13 +51,16 @@
       var er = null;  // numbers quoted in the text are computed live at this experiment's preset
       try { if (hasCompute()) er = compute(clone(merged(e.preset))); } catch (x) { er = null; }
       var live = function (t) { return er ? PG.fill(t, er).text : t; };
+      // predict first, then load the setup, then compare with what happens
+      if (e.predict) { art.insertBefore(h('p', { 'class': 'pg-predict' }, null, '<b>Predict first:</b> ' + lite(e.predict)), dl); }
+      if (e.preset && typeof e.preset === 'object' && Object.keys(e.preset).length) {
+        var b = h('button', { type: 'button', 'class': 'pg-btn' }, null, 'Load this setup');
+        art.insertBefore(b, dl);
+        b.addEventListener('click', function () { state = merged(e.preset); buildControls(); update(); flash(); });
+      }
       h('dt', {}, dl, 'Change'); h('dd', {}, dl, lite(live(e.change)));
       h('dt', {}, dl, 'Observe'); h('dd', {}, dl, lite(live(e.observe)));
       h('dt', {}, dl, 'Why'); h('dd', {}, dl, lite(live(e.why)));
-      if (e.preset && typeof e.preset === 'object' && Object.keys(e.preset).length) {
-        var b = h('button', { type: 'button', 'class': 'pg-btn' }, art, 'Set up experiment ' + (i + 1));
-        b.addEventListener('click', function () { state = merged(e.preset); buildControls(); update(); flash(); });
-      }
     });
     var lim = SPEC.limitation || {};
     $('pg-limit-kind').innerHTML = lite(lim.kind || 'Limitation');
@@ -184,11 +187,18 @@
   function errBox(msg) { var p = h('p', { 'class': 'pg-error' }, $('pg-figure')); p.textContent = msg; }
   function update() {
     var f = $('pg-figure'); f.innerHTML = '';
+    if ($('pg-worked')) $('pg-worked').innerHTML = '';
     if (!hasCompute()) { errBox('The interactive model is unavailable for this page.'); readouts(null); return; }
     var r = null;
     try { r = compute(clone(state)); }
     catch (e) { errBox('The calculation could not run for these inputs: ' + e.message); readouts(null); return; }
     readouts(r);
+    // the key equation with the current numbers plugged in, refreshed on every change
+    var wk = $('pg-worked');
+    if (wk) {
+      var wf = SPEC.worked ? PG.fill(SPEC.worked, r) : null;
+      wk.innerHTML = wf && !wf.bad.length ? '<span class="pg-worked-lab">With your current inputs</span>' + lite(wf.text) : '';
+    }
     try { render(PG.makeV(f, { ghost: true }), clone(state), r); }
     catch (e) { errBox('The figure could not be drawn for these inputs: ' + e.message); }
   }

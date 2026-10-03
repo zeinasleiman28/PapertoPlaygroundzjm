@@ -110,6 +110,11 @@ function __run(spec) {
     catch (e) { (cs.kind === 'default' ? rep.critical : bucket).push('compute() threw on ' + cs.label + ': ' + e.message); return; }
     if (!r || typeof r !== 'object') { bucket.push('compute() must return an object (' + cs.label + ')'); return; }
     var nf = []; __nonFinite(r, 'r', nf);
+    if (spec.worked) {  // the live worked equation must resolve; if not on the default inputs, Python drops it
+      var wf = PG.fill(spec.worked, r);
+      if (cs.kind === 'default') rep.stats.worked_ok = !wf.bad.length;
+      if (wf.bad.length) rep.stats.worked_bad_states = (rep.stats.worked_bad_states || 0) + 1;
+    }
     if (nf.length) rep.major.push('compute() returned NaN on ' + cs.label + ': ' + nf.join(', '));
     if (cs.kind === 'default') {
       rep.missing_readouts = [];
@@ -206,7 +211,9 @@ function __run(spec) {
     var msg = '"' + (b.req || '?') + '"' + (bad.length ? ' (mapped to ' + bad.join(', ') + ', which does not exist)' : ' (not mapped to any control, output, exploration or check)');
     missing.push(msg);
     // a missing control or experiment is a real gap; an output/check name that does not match is often just wording
-    if (!bad.length || bad.some(function (x) { return /^(control|exploration) /.test(x); })) hardMissing.push(msg); else softMissing.push(msg);
+    // a missing control is a real gap; an exploration named by a loose title (the spec always has 2 checked
+    // experiments) or an output/check name that does not match is usually just wording
+    if (!bad.length || bad.some(function (x) { return /^control /.test(x) || (/^exploration /.test(x) && nexp < 2); })) hardMissing.push(msg); else softMissing.push(msg);
   });
   rep.stats.brief = { items: brief.length, covered: covered, missing: missing };
   if (!brief.length) rep.major.push('SPEC "brief" is missing: list every requirement of the focus and map each to a control, output, exploration or check');

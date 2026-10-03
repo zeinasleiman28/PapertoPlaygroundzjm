@@ -332,6 +332,9 @@ def summarize_checks(res: dict) -> dict:
         "self_tests": f'{st.get("checks_passed", 0)}/{st.get("checks_total", 0)}',
         "live_numbers_resolve": "pass" if not n("placeholder") else "fail",
         "citations_in_source": "pass" if not n("SPEC cites numbers") else "fail",
+        "live_worked_equation": ("pass" if st.get("worked_ok") else "absent") +
+                                (f' (blank on {st["worked_bad_states"]} test states)' if st.get("worked_ok") and st.get("worked_bad_states") else ""),
+        "predict_first_explorations": f'{st.get("predict_prompts", 0)}/{len((res.get("spec") or {}).get("explorations") or [])}',
     }
     b = st.get("brief")
     if b:
@@ -378,6 +381,17 @@ def evaluate(spec_in, code_text: str, case: dict = None, source_text: str = ""):
             spec["readouts"] = [r for r in spec["readouts"] if not (isinstance(r, dict) and r.get("key") in missing)]
             res["major"] = [x for x in res["major"] if not x.startswith("readout key ")]
             res["fixes"].append(f"dropped readouts not returned by compute(): {sorted(missing)}")
+        # deterministic fix: a worked equation whose placeholders do not resolve is dropped rather than repaired
+        if spec.get("worked") is not None and (not isinstance(spec["worked"], str) or res["stats"].get("worked_ok") is False):
+            spec.pop("worked")
+            res["stats"]["worked_ok"] = None
+            res["fixes"].append("dropped worked equation (placeholders did not resolve)")
+    if not spec.get("worked"):
+        res["minor"].append('SPEC "worked" (the key equation with live {r.key} values) is missing')
+    ex = spec.get("explorations") if isinstance(spec.get("explorations"), list) else []
+    res["stats"]["predict_prompts"] = sum(1 for e in ex if isinstance(e, dict) and str(e.get("predict", "")).strip())
+    if ex and res["stats"]["predict_prompts"] < len(ex):
+        res["minor"].append("an exploration has no \"predict\" question")
     res["summary"] = summarize_checks(res)
     # de-duplicate while keeping order; collapse the same failure seen on many test inputs
     for k in ("critical", "major", "minor"):

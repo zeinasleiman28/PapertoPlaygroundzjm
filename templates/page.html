@@ -118,6 +118,11 @@ input[type=number],select{font:15px var(--sans);font-variant-numeric:tabular-num
 #pg-readouts{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;font-family:var(--sans)}
 .pg-ro{background:var(--panel);border:1px solid var(--rule);border-radius:6px;padding:8px 12px}
 .pg-ro-wide{grid-column:1 / -1}
+.pg-worked{font-size:17px;margin:10px 0 0;padding:10px 14px;background:var(--panel);border:1px solid var(--rule);border-left:4px solid var(--accent);border-radius:4px;overflow-x:auto}
+.pg-worked:empty{display:none}
+.pg-worked-lab{font:600 13px var(--sans);color:var(--alt);display:block;margin-bottom:2px}
+.pg-predict{margin:0 0 10px;padding:8px 12px;border-left:4px solid var(--alt);background:var(--panel)}
+.pg-predict b{font-family:var(--sans)}
 .pg-ro-note{font-size:14px;border-left:4px solid var(--alt)}
 .pg-ro-label{font-size:13px;color:var(--muted);line-height:1.35}
 .pg-ro-val{font-size:18px;font-weight:650;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
@@ -194,6 +199,7 @@ footer{max-width:1280px;margin:0 auto;padding:0 28px 32px;font:13px var(--sans);
       <p class="pg-figcap" id="pg-figcap"></p>
       <h2>Computed values</h2>
       <div id="pg-readouts" aria-live="polite"></div>
+      <p class="pg-worked" id="pg-worked" aria-live="polite"></p>
     </div>
   </section>
 
